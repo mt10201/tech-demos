@@ -1,1 +1,13 @@
-{"proposed": [], "approved": [], "skipped": []}
+{
+  "proposed": [
+    {
+      "id": "2110669062225178899",
+      "title": "Polymarket API: Bitcoin Up or Down penny-side scanner",
+      "url": "https://x.com/PolyDekos/status/2110669062225178899",
+      "date": "2026-10-16",
+      "slug": "polymarket-penny-scanner"
+    }
+  ],
+  "approved": [],
+  "skipped": []
+}
