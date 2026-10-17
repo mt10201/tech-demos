@@ -44,3 +44,5 @@ apps/polymarket-penny-scanner/
 - Goal: test "buy any side at ≤ N¢, hold to resolution" on thousands of resolved markets, with a 95% Wilson CI and EV per $1, by duration (5m/15m/1h/4h).
 - Slices: `backtest.py` (Gamma windows → CLOB 1-minute price history → data-api trades for a realistic-fill sample) → `data/backtest_results.json`; `wallet_check.py` (public read-only data-api check of the wallet promoted in the bookmark) → `data/wallet_check.json`; Backtest tab in `app.py`.
 - Deferred: sub-minute fills from on-chain logs, fees and slippage modelling, ETH/SOL markets.
+
+- Follow-up 2: `backtest_bands.py` covers the 5–20¢ and 80–99¢ bands with last-N-minute entry windows, fee-adjusted EV, tail risk and the wallet's own per-band results and entry timing. Results appear in the Backtest tab.

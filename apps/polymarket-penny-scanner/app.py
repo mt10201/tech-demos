@@ -166,3 +166,45 @@ with bt:
             st.dataframe(pd.DataFrame(w["buckets"]).rename(columns={"entry_bucket_c": "Avg entry (¢)"}), width="stretch", hide_index=True)
             st.caption("Source: data-api /v1/leaderboard and /closed-positions for proxy wallet " + w["wallet"] +
                        ". Closed positions may under-count unredeemed losers.")
+        bf = data / "bands_results.json"
+        if bf.exists():
+            br = json.loads(bf.read_text())
+            st.subheader("Bands where the wallet profits: 5–20¢ and 80–99¢")
+            st.caption(f"Same {br['markets']:,} markets. Low bands: buy a side the first time it trades into the band. "
+                       "Near-sure bands: buy the favourite the first time it reaches the band, optionally only in the final N minutes. "
+                       f"EV after fee uses the crypto taker fee (shares × {br['fee_rate']} × p × (1−p)). "
+                       f"Tail risk uses a fixed ${br['stake_$']:.0f} stake per bet, in chronological order. "
+                       f"Realistic model: {br['trade_sample_markets']:,} sampled markets, {br['trade_fetch_failures']} trade-fetch failures.")
+            c1, c2, c3 = st.columns(3)
+            model = c1.radio("Model", ["touch", "realistic"], horizontal=True, key="bm")
+            bwin = c2.selectbox("Entry window (near-sure bands)", ["any", "last 5m", "last 2m", "last 1m"], key="bw")
+            st.caption("Wallet 0x50f7 has no closed BTC positions averaging 10–20¢ in the sampled window, so those wallet rows are omitted.")
+            bdur = c3.multiselect("Durations", ["all", "5m", "15m", "1h", "4h"], ["all", "5m", "15m", "1h", "4h"], key="bd")
+            def band_table(df):
+                return pd.DataFrame({
+                    "Band": df["band_c"] + "¢", "Window": df["window"], "Duration": df["duration"], "Sides": df["sides"],
+                    "Win rate": (df["win_rate"] * 100).round(2).astype(str) + "%",
+                    "95% CI": [f"{lo*100:.1f}–{hi*100:.1f}%" for lo, hi in zip(df["ci_low"], df["ci_high"])],
+                    "Break-even": (df["breakeven"] * 100).round(2).astype(str) + "%",
+                    "EV/$1": df["ev_per_$1"].round(3), "EV/$1 after fee": df["ev_after_fee"].round(3),
+                    "Max DD ($100 stake)": df["max_drawdown_$"].round(0), "Worst losing streak": df["worst_losing_streak"],
+                    "Final P&L ($100 stake)": df["final_pnl_$"].round(0)})
+            df = pd.DataFrame(br[model]); df = df[df["duration"].isin(bdur)]
+            hi_df = df[(df["kind"] == "high") & (df["window"] == bwin)]
+            lo_df = df[df["kind"] == "low"]
+            st.markdown(f"**Near-sure bands (80–99¢), entry window: {bwin}** — {model} model")
+            st.dataframe(band_table(hi_df), width="stretch", hide_index=True, height=38 + 35 * len(hi_df))
+            st.markdown(f"**Low bands (5–20¢)** — {model} model")
+            st.dataframe(band_table(lo_df), width="stretch", hide_index=True, height=38 + 35 * len(lo_df))
+            w = br["wallet"]
+            st.markdown(f"**Wallet 0x50f7 per band** (closed BTC Up/Down positions {w['range'][0]} → {w['range'][1]}; "
+                        "entry timing from /activity on ≤150 sampled positions per band)")
+            wd = pd.DataFrame([b for b in w["bands"] if b.get("positions")])
+            st.dataframe(pd.DataFrame({
+                "Band": wd["band_c"] + "¢", "Positions": wd["positions"],
+                "Win rate": (wd["win_rate"] * 100).round(2).astype(str) + "%",
+                "95% CI": [f"{lo*100:.1f}–{hi*100:.1f}%" for lo, hi in zip(wd["ci_low"], wd["ci_high"])],
+                "Cost $": wd["cost_$"], "Realized P&L $": wd["realized_pnl_$"],
+                "Return on cost": (wd["return_on_cost"] * 100).round(2).astype(str) + "%",
+                "Median s before close": wd["median_s_before_close"].round(0),
+                "Share in last 60s": (wd["share_last_60s"] * 100).round(0).astype(str) + "%"}), width="stretch", hide_index=True)

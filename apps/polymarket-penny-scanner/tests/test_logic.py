@@ -36,3 +36,17 @@ def test_duration_label():
     assert duration_label("Bitcoin Up or Down - October 16, 11:55PM-12:00AM ET") == "5m"
     assert duration_label("Bitcoin Up or Down - October 16, 2PM ET") == "1h"
     assert duration_label("Bitcoin Up or Down - October 16, 12:00PM-4:00PM ET") == "4h"
+
+from backtest_bands import first_entry, tail_risk, fee_per_dollar
+
+def test_first_entry_window_and_buffer():
+    pts = [(0, 0.5), (100, 0.85), (250, 0.92), (290, 0.93)]
+    assert first_entry(pts, 300, (0.80, 0.90), False, None) == (100, 0.85)
+    assert first_entry(pts, 300, (0.90, 0.95), False, 60) == (250, 0.92)
+    assert first_entry(pts, 300, (0.90, 0.95), False, 30) is None  # 290 is inside the 15 s buffer
+    assert first_entry([(0, 0.2), (60, 0.07)], 300, (0.05, 0.10), True, None) == (60, 0.07)
+
+def test_tail_risk_and_fee():
+    r = tail_risk([{"t": 1, "won": True, "price": 0.9}, {"t": 2, "won": False, "price": 0.9}, {"t": 3, "won": False, "price": 0.9}])
+    assert r["worst_losing_streak"] == 2 and r["max_drawdown_$"] == 200
+    assert fee_per_dollar(0.9) == pytest.approx(0.007)

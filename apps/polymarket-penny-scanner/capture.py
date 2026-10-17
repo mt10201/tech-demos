@@ -31,6 +31,28 @@ def capture_backtest(url: str = URL):
         br.close()
 
 
+def capture_bands(url: str = URL):
+    """Screenshots of the band backtest section (touch any / touch last 1m / realistic last 1m) and the wallet comparison."""
+    def top(pg, text):
+        pg.get_by_text(text).first.evaluate("e => e.scrollIntoView({block: 'start'})"); pg.wait_for_timeout(1500)
+    with sync_playwright() as p:
+        br = p.chromium.launch(); pg = br.new_page(viewport={"width": 1500, "height": 1400})
+        pg.goto(url); pg.wait_for_selector("text=Live markets", timeout=60000)
+        pg.get_by_role("tab", name="Backtest").click(); pg.wait_for_selector("text=Bands where the wallet profits", timeout=60000)
+        pg.wait_for_timeout(3000); top(pg, "Bands where the wallet profits")
+        pg.screenshot(path=str(OUT / "bands_touch.png"))
+        def pick_window(label):
+            top(pg, "Bands where the wallet profits")
+            pg.get_by_role("combobox", name="Entry window (near-sure bands)").click(); pg.wait_for_timeout(800)
+            pg.get_by_role("option", name=label).click(); pg.wait_for_timeout(2500)
+        pick_window("last 1m"); top(pg, "Bands where the wallet profits")
+        pg.screenshot(path=str(OUT / "bands_touch_last1m.png"))
+        pg.get_by_text("realistic", exact=True).click(); pg.wait_for_timeout(3000); top(pg, "Bands where the wallet profits")
+        pg.screenshot(path=str(OUT / "bands_realistic_last1m.png"))
+        top(pg, "Low bands (5–20¢)")
+        pg.screenshot(path=str(OUT / "bands_wallet.png"))
+        br.close()
+
 if __name__ == "__main__":
     import sys
-    capture_backtest() if "backtest" in sys.argv else capture_demo()
+    capture_bands() if "bands" in sys.argv else capture_backtest() if "backtest" in sys.argv else capture_demo()
