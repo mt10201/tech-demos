@@ -1,5 +1,6 @@
 {
-  "proposed": [
+  "proposed": [],
+  "approved": [
     {
       "id": "2110669062225178899",
       "title": "Polymarket API: Bitcoin Up or Down penny-side scanner",
@@ -8,6 +9,5 @@
       "slug": "polymarket-penny-scanner"
     }
   ],
-  "approved": [],
   "skipped": []
 }
