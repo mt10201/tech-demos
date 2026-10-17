@@ -24,3 +24,15 @@ def test_threshold_filter():
 def test_history_summary():
     s = history_summary([{"touched": True, "won": False}, {"touched": True, "won": True}, {"touched": False, "won": True}])
     assert s == {"sides_checked": 3, "touched": 2, "won": 1, "hit_rate": 0.5}
+
+from backtest import wilson, ev_per_dollar, duration_label
+
+def test_wilson_and_ev():
+    lo, hi = wilson(0, 100)
+    assert lo == 0 and hi == pytest.approx(0.037, abs=1e-3)
+    assert ev_per_dollar(True, 0.02) == pytest.approx(49) and ev_per_dollar(False, 0.02) == -1
+
+def test_duration_label():
+    assert duration_label("Bitcoin Up or Down - October 16, 11:55PM-12:00AM ET") == "5m"
+    assert duration_label("Bitcoin Up or Down - October 16, 2PM ET") == "1h"
+    assert duration_label("Bitcoin Up or Down - October 16, 12:00PM-4:00PM ET") == "4h"

@@ -32,7 +32,7 @@ def time_left(end: str) -> str:
     return f"{h}h {m:02d}m" if h else f"{m}m {s:02d}s"
 
 
-scan, calc, hist = st.tabs(["Scanner", "Payoff calculator", "Resolved history"])
+scan, calc, hist, bt = st.tabs(["Scanner", "Payoff calculator", "Resolved history", "Backtest"])
 
 with scan:
     markets = load_live()
@@ -110,3 +110,59 @@ with hist:
     df["Won"] = df.pop("won").map({True: "✅", False: "❌"})
     df["Touched"] = df.pop("touched").map({True: "🚩", False: ""})
     st.dataframe(df, width="stretch", hide_index=True)
+
+with bt:
+    import json
+    from pathlib import Path
+    data = Path(__file__).parent / "data"
+    f = data / "backtest_results.json"
+    if not f.exists():
+        st.warning("No backtest yet. Run `python backtest.py --days 30` first.")
+    else:
+        r = json.loads(f.read_text())
+        st.subheader("Backtest: buy any side once it trades at ≤ threshold, hold to resolution")
+        b = st.columns(4)
+        b[0].metric("Resolved markets", f"{r['markets']:,}")
+        b[1].metric("Window", f"{r['range'][0][:10]} → {r['range'][1][:10]}")
+        b[2].metric("Price-history gaps (sides)", r["history_gaps_sides"])
+        b[3].metric("Excluded before close", f"{r['close_buffer_s']}s")
+        st.caption("Markets by duration: " + ", ".join(f"{k}: {v:,}" for k, v in r["markets_by_duration"].items())
+                   + f". Price fidelity: {r['price_history_fidelity']} (CLOB prices-history).")
+        dur_pick = st.multiselect("Durations", ["all", "5m", "15m", "1h", "4h", "daily/other"], ["all", "5m", "15m", "1h", "4h"])
+
+        def table(rows):
+            df = pd.DataFrame(rows)
+            df = df[df["duration"].isin(dur_pick)]
+            return pd.DataFrame({
+                "Threshold": df["threshold_c"].astype(str) + "¢", "Duration": df["duration"], "Sides touched": df["sides"],
+                "Wins": df["wins"], "Win rate": (df["win_rate"] * 100).round(2).astype(str) + "%",
+                "95% CI (Wilson)": [f"{lo*100:.2f}–{hi*100:.2f}%" for lo, hi in zip(df["ci_low"], df["ci_high"])],
+                "Avg entry": df["avg_entry_c"].round(2).astype(str) + "¢",
+                "Break-even": (df["breakeven"] * 100).round(2).astype(str) + "%",
+                "EV per $1": df["ev_per_$1"].round(3)})
+
+        st.markdown("**Touch model** — entry assumed at exactly the threshold whenever the 1-minute price dipped to it.")
+        t = table(r["touch"]); st.dataframe(t, width="stretch", hide_index=True)
+        allrows = pd.DataFrame([x for x in r["touch"] if x["duration"] == "all"])
+        chart = pd.DataFrame({"threshold": allrows["threshold_c"].astype(str) + "¢",
+                              "win rate %": allrows["win_rate"] * 100, "break-even %": allrows["breakeven"] * 100}).set_index("threshold")
+        st.bar_chart(chart, stack=False, height=260)
+        if r["realistic"]:
+            m = r["realistic_meta"]
+            st.markdown(f"**Realistic-fill model** — only sides with an actual taker trade at ≤ threshold (data-api /trades), "
+                        f"entry at that first trade's price. Sample: {m['sampled_markets']:,} markets; "
+                        f"{m['touch_rows_without_fill']:,} of {m['touch_rows_in_sample']:,} touches had no qualifying trade; "
+                        f"median shares printed at ≤ threshold: {m['median_fill_shares']:,.0f}.")
+            st.dataframe(table(r["realistic"]), width="stretch", hide_index=True)
+        wf = data / "wallet_check.json"
+        if wf.exists():
+            w = json.loads(wf.read_text()); lb = w["leaderboard_all_time"] or {}
+            st.subheader("Reality check: the @PolyDekos wallet (0x50f7)")
+            c = st.columns(4)
+            c[0].metric("All-time PnL (leaderboard)", f"${lb.get('pnl', 0):,.0f}")
+            c[1].metric("All-time volume", f"${lb.get('vol', 0):,.0f}")
+            c[2].metric(f"BTC Up/Down PnL ({w['range'][0]}→{w['range'][1]})", f"${w['btc_updown_pnl_$']:,}")
+            c[3].metric("Closed positions sampled", f"{w['closed_positions_fetched']:,}")
+            st.dataframe(pd.DataFrame(w["buckets"]).rename(columns={"entry_bucket_c": "Avg entry (¢)"}), width="stretch", hide_index=True)
+            st.caption("Source: data-api /v1/leaderboard and /closed-positions for proxy wallet " + w["wallet"] +
+                       ". Closed positions may under-count unredeemed losers.")
