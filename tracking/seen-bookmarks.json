@@ -1,13 +1,5 @@
 {
-  "proposed": [
-    {
-      "id": "2100229768385822812",
-      "title": "build123d: Python parametric CAD (code-to-STL)",
-      "url": "https://x.com/gregisenberg/status/2100229768385822812",
-      "date": "2026-10-19",
-      "slug": "build123d-param-cad"
-    }
-  ],
+  "proposed": [],
   "approved": [
     {
       "id": "2110669062225178899",
@@ -15,6 +7,13 @@
       "url": "https://x.com/PolyDekos/status/2110669062225178899",
       "date": "2026-10-16",
       "slug": "polymarket-penny-scanner"
+    },
+    {
+      "id": "2100229768385822812",
+      "title": "build123d: parametric CAD in Python (Rodin coil card demo)",
+      "url": "https://x.com/gregisenberg/status/2100229768385822812",
+      "date": "2026-10-16",
+      "slug": "build123d-param-cad"
     }
   ],
   "skipped": []
