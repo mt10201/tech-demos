@@ -1,4 +1,4 @@
-"""Capture screenshots of the Rodin coil card Streamlit app via Playwright."""
+"""Capture screenshots of the Rodin torus Streamlit app via Playwright."""
 
 from __future__ import annotations
 
@@ -66,13 +66,24 @@ def main():
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
-            page = browser.new_page(viewport={"width": 1440, "height": 900})
+            page = browser.new_page(viewport={"width": 1600, "height": 1000})
             page.goto(URL, wait_until="networkidle", timeout=120_000)
             # Wait for Plotly canvas / mesh
             page.wait_for_timeout(12_000)
+            hero = MEDIA / "preview.png"
+            page.screenshot(path=str(hero), full_page=False)
+            print(f"wrote {hero}")
             shot = MEDIA / "screenshot.png"
             page.screenshot(path=str(shot), full_page=True)
             print(f"wrote {shot}")
+
+            # Mirror-closure variant (both spiral families, like the SW top view)
+            page.get_by_text("Mirror golden spiral", exact=False).first.click()
+            page.wait_for_timeout(15_000)
+            page.evaluate("window.scrollTo(0, 0)")
+            mirror = MEDIA / "preview_mirror.png"
+            page.screenshot(path=str(mirror), full_page=False)
+            print(f"wrote {mirror}")
 
             # Second shot: scroll to groove table / snippet
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")

@@ -1,57 +1,46 @@
-"""Generate a build123d Python snippet from CardParams."""
+"""Generate a standalone build123d Python snippet from TorusParams."""
 
 from __future__ import annotations
 
-from geometry import PHI, CardParams, groove_specs
+from geometry import PHI, TorusParams, cutter_radius, path_radius, sweeps
 
 
-def generate_snippet(params: CardParams) -> str:
-    specs = groove_specs(params)
-    lines = [
-        "from build123d import *",
-        "import math",
-        "",
-        f"PHI = (1 + 5**0.5) / 2  # {PHI:.10f}",
-        f"D = {params.diameter:.4f}  # mm diameter",
-        f"T = {params.thickness:.4f}  # mm thickness",
-        f"GROOVE_W = {params.groove_width:.4f}",
-        f"GROOVE_D = {params.groove_depth:.4f}",
-        f"PHI_SCALE = {params.phi_scale:.4f}",
-        f"COIL = {params.coil_factor:.4f}",
-        f"ROT = {params.rotation_deg:.4f}",
-        "",
-        "grooves = [",
-    ]
-    for g in specs:
-        lines.append(
-            f"    # i={g.index}  φ^{g.index % 4}  span={g.span:.4f} mm  "
-            f"θ={g.angle_deg:.2f}°  r=[{g.r_start:.3f}, {g.r_end:.3f}]"
-        )
-        lines.append(
-            f"    dict(angle={g.angle_deg:.6f}, r0={g.r_start:.6f}, r1={g.r_end:.6f}),"
-        )
-    lines += [
-        "]",
-        "",
-        "with BuildPart() as rodin_coil_card:",
-        "    with BuildSketch():",
-        "        Circle(radius=D / 2)",
-        "    extrude(amount=T)",
-        "    for g in grooves:",
-        "        span = g['r1'] - g['r0']",
-        "        mid = 0.5 * (g['r0'] + g['r1'])",
-        "        a = math.radians(g['angle'])",
-        "        loc = Location(",
-        "            (mid * math.cos(a), mid * math.sin(a), T - GROOVE_D),",
-        "            (0, 0, g['angle']),",
-        "        )",
-        "        with BuildSketch(loc):",
-        "            Rectangle(span + 0.1, GROOVE_W)",
-        "        extrude(amount=GROOVE_D + 0.05, mode=Mode.SUBTRACT)",
-        "",
-        "part = rodin_coil_card.part",
-        "# export_stl(part, 'rodin_coil_card.stl')",
-        "# export_step(part, 'rodin_coil_card.step')",
-        "",
-    ]
-    return "\n".join(lines)
+def generate_snippet(p: TorusParams) -> str:
+    top, bottom = sweeps(p)
+    return f'''from build123d import *
+import math
+
+# Units: inches   φ = {PHI:.10f}
+R, r      = {p.major_radius:.4f}, {p.tube_radius:.4f}   # major / tube radius
+DEPTH     = {p.groove_depth:.4f}             # groove depth
+CUT_R     = {cutter_radius(p):.4f}             # groove profile radius (= depth → semicircle)
+RP        = {path_radius(p):.4f}             # cutter axis tube-radius = r - DEPTH + CUT_R
+N, HAND   = {p.n_grooves}, {p.handedness}
+TOP, BOT  = {top:.6f}, {bottom:.6f}   # azimuth swept on top / bottom half (rad)
+ROT       = math.radians({p.rotation_deg:.4f})
+QMIN, QMAX = R - RP, R + RP
+
+def wrap(i, n=121):
+    """One full wrap; top half is a golden spiral seen from above."""
+    pts = []
+    for j in range(n):
+        th = 2 * math.pi * j / (n - 1)
+        q = R + RP * math.cos(th)
+        s = math.log(QMAX / q) / math.log(QMAX / QMIN)       # 0 outer → 1 inner
+        dphi = s * TOP if th <= math.pi else TOP + (1 - s) * BOT
+        ph = ROT + i * 2 * math.pi / N + HAND * dphi
+        pts.append((q * math.cos(ph), q * math.sin(ph), RP * math.sin(th)))
+    return Edge.make_spline(pts)
+
+torus = Solid.make_torus(R, r)
+cutters = []
+for i in range(N):
+    path = wrap(i)
+    profile = Plane(origin=path @ 0, z_dir=path % 0) * Circle(CUT_R)
+    cutters.append(Solid.sweep(profile.face(), Wire([path]), is_frenet=True))
+
+# OpenCascade's torus.cut(*cutters) is unreliable for these long helical pipes,
+# so export the exact bodies and Combine ▸ Subtract them in SOLIDWORKS:
+export_step(Compound(children=[torus, *cutters]), "rodin_torus.step")
+# The app's STL (finished grooved part) comes from an analytic mesh: torus_mesh.py
+'''
