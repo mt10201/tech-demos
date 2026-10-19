@@ -16,7 +16,7 @@ This replaces the earlier flat "Rodin coil card" assumption, which the owner cor
 ## Explicit outs
 - No slicer / printer settings.
 - No EM simulation of the wound coil.
-- No in-OCC boolean subtraction for STEP. It is unreliable here, so the user does Combine ▸ Subtract in SOLIDWORKS.
+- ~~No in-OCC boolean for STEP~~: solved in Revision 4 with sequential fuzzy cuts (the one-shot and union-first cuts still fail).
 
 ## Revision 2: Photo replica (default)
 - Measured from the owner's photo: 12 + 12 crisscross grooves, constant pitch, about 150° rim → hole.
@@ -26,6 +26,12 @@ This replaces the earlier flat "Rodin coil card" assumption, which the owner cor
 ## Revision 3: constant true-3D width
 - U-groove profile, 1/8" × 1/8" by default. Depth comes from the 3D distance to the surface centre-line (KD-tree plus nearest-segment search). Widths are verified equal at rim, top, hole and bottom.
 - Preview at 180×720, STL at 400×1600 (1.28 M triangles). Min wall at the hole: +0.155".
+
+## Revision 4: smooth walls (real booleans)
+- The heightfield's grid aliasing stair-stepped the groove walls. It is replaced by `boolean_mesh.py`: a chord-error-tessellated torus minus swept U-profile tubes (chained into closed loops) via manifold3d.
+- STL: 579,960 triangles, 29.0 MB, watertight. Width is 0.1250" on the actual STL at rim, top, hole and bottom.
+- Finished STEP: 24 sequential OCC cuts with fuzzy 1e-4 (falling back to 1e-3), each validity-checked. The result is a valid solid, about 4–5 min, about 92 MB, built on demand. The tool-body STEP is kept as a fast fallback.
+- Preview: crease-split smooth shading, a groove-wall zoom camera, and ball-cropped close-ups.
 
 ## Decisions
 - Top half is exactly golden (radius ÷ φ per 90°). The bottom half either closes the Rodin 150° skip (default) or mirrors the golden spiral.
@@ -38,3 +44,4 @@ This replaces the earlier flat "Rodin coil card" assumption, which the owner cor
 - [x] Streamlit UI
 - [x] capture + media
 - [x] README / PR update
+- [x] Rev 4: manifold boolean STL, finished-solid STEP, smooth close-ups

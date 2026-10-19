@@ -84,3 +84,62 @@ def step_bytes(p: TorusParams) -> bytes:
         path = Path(tmp) / "rodin_torus.step"
         export_step(comp, str(path))
         return path.read_bytes()
+
+
+# ---- finished solid (torus with grooves already subtracted) -----------------
+
+FUZZY_STEPS = (1e-4, 1e-3)
+
+
+def _occ_cut(base, tool, fuzzy: float):
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
+    from OCP.collections import List_TopoDS_Shape
+
+    op = BRepAlgoAPI_Cut()
+    a, b = List_TopoDS_Shape(), List_TopoDS_Shape()
+    a.Append(base.wrapped)
+    b.Append(tool.wrapped)
+    op.SetArguments(a)
+    op.SetTools(b)
+    op.SetFuzzyValue(fuzzy)
+    op.SetRunParallel(True)
+    op.Build()
+    if not op.IsDone():
+        return None
+    shp = op.Shape()
+    return Solid(shp) if shp.ShapeType().name == "TopAbs_SOLID" else Compound(shp)
+
+
+def finished_solid(p: TorusParams, progress=None):
+    """Exact B-rep of torus − all U-groove cutters (for a SOLIDWORKS-ready STEP).
+
+    A single multi-tool cut, or cutting a pre-fused tool, gives invalid or
+    wrong-volume results in OpenCascade for these long helical cutters.
+    Subtracting **one cutter at a time with a fuzzy tolerance (1e-4")** stays
+    valid. Each step is checked with BRepCheck, and a failed step is retried
+    at 1e-3". This takes minutes, so the app runs it only on demand.
+    """
+    torus, cutters, _ = build_cad_bodies(p)
+    res = torus
+    for k, c in enumerate(cutters):
+        nxt = None
+        for fz in FUZZY_STEPS:
+            nxt = _occ_cut(res, c, fz)
+            if nxt is not None and nxt.is_valid and nxt.volume < res.volume:
+                break
+            nxt = None
+        if nxt is None:
+            raise RuntimeError(f"OpenCascade boolean failed at groove {k}")
+        res = nxt
+        if progress:
+            progress(k + 1, len(cutters))
+    res.label = "rodin_torus_grooved"
+    return res
+
+
+def finished_step_bytes(p: TorusParams, progress=None) -> bytes:
+    solid = finished_solid(p, progress)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "rodin_torus_grooved.step"
+        export_step(solid, str(path))
+        return path.read_bytes()

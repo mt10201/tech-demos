@@ -181,14 +181,15 @@ def test_photo_wall_numeric_matches_closed_form():
 
 
 def test_export_mesh_watertight():
+    """The printable STL comes from the manifold3d boolean."""
     import trimesh
 
-    from torus_mesh import EXPORT_GRID
+    from boolean_mesh import EXPORT_KW, grooved_solid
 
-    v, f = grooved_torus_mesh(TorusParams(), *EXPORT_GRID)
+    v, f = grooved_solid(TorusParams(), **EXPORT_KW)
     m = trimesh.Trimesh(vertices=v, faces=f, process=False)
-    assert m.is_watertight and m.is_winding_consistent
-    assert len(f) == 2 * EXPORT_GRID[0] * EXPORT_GRID[1]
+    assert m.is_watertight and m.is_winding_consistent and m.is_volume
+    assert len(f) < 2_000_000  # binary STL < 100 MB
 
 
 # ---- constant true-3D width + U profile ------------------------------------
@@ -246,3 +247,54 @@ def test_mesh_depth_is_true_depth():
     v, f, dep = grooved_torus_mesh(TorusParams(), 120, 960, return_depth=True)
     assert dep.max() == pytest.approx(0.125, abs=3e-3)
     assert dep.min() == 0.0
+
+
+# ---- real mesh boolean (manifold3d) -----------------------------------------
+
+@pytest.fixture(scope="module")
+def hires():
+    from boolean_mesh import EXPORT_KW, grooved_solid
+
+    p = TorusParams()
+    return p, *grooved_solid(p, **EXPORT_KW)
+
+
+@pytest.mark.parametrize("theta_deg", [9, 99, 189, 279])  # rim, top, hole, bottom
+def test_boolean_mesh_groove_width_and_depth(hires, theta_deg):
+    """Slice the actual STL perpendicular to groove 0 and measure the notch."""
+    from boolean_mesh import section_width
+
+    p, v, f = hires
+    g0 = all_paths(p, 3601, radius=p.tube_radius)[0]
+    j = int(round(theta_deg / 360 * 3600))
+    T = g0[j + 1] - g0[j - 1]
+    w, dmax = section_width(p, v, f, g0[j], T / np.linalg.norm(T))
+    assert w == pytest.approx(0.125, rel=0.02)
+    assert dmax == pytest.approx(0.125, abs=0.002)
+
+
+def test_boolean_photo_chains_into_closed_loops():
+    from boolean_mesh import chain_paths
+
+    p = TorusParams()
+    chains = chain_paths(all_paths(p, 201, radius=p.tube_radius))
+    assert len(chains) == 4 and all(closed for _, closed in chains)  # 2 loops × 2 directions
+
+
+def test_boolean_mirror_open_grooves_watertight():
+    import trimesh
+
+    from boolean_mesh import PREVIEW_KW, grooved_solid
+
+    v, f = grooved_solid(TorusParams(pattern="mirror"), **PREVIEW_KW)
+    assert trimesh.Trimesh(vertices=v, faces=f, process=False).is_watertight
+
+
+def test_u_profile_polygon():
+    from boolean_mesh import CLEARANCE, u_profile
+
+    prof = u_profile(TorusParams())
+    assert prof[:, 0].min() == pytest.approx(-0.0625)
+    assert prof[:, 0].max() == pytest.approx(0.0625)
+    assert prof[:, 1].min() == pytest.approx(-0.125)
+    assert prof[:, 1].max() == pytest.approx(CLEARANCE)

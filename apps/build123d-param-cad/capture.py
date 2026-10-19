@@ -122,7 +122,7 @@ def main():
             if PHOTO and Path(PHOTO).exists():
                 compose_comparison(Path(PHOTO), fv, MEDIA / "compare_photo.png")
             # Close-up: rim vs hole patches + cross-section profiles
-            hdr = page.get_by_text("Close-up: rim vs hole at the same scale")
+            hdr = page.get_by_text("Close-up: rim vs hole at the same scale", exact=False).first
             hdr.scroll_into_view_if_needed()
             page.evaluate("window.scrollBy(0, -20)")
             page.wait_for_timeout(2500)
@@ -130,6 +130,17 @@ def main():
             page.screenshot(path=str(cu), full_page=False)
             print(f"wrote {cu}")
             page.evaluate("window.scrollTo(0, 0)")
+
+            # Zoomed 3D preview across the hole (like the owner's screenshot)
+            page.get_by_text("Zoom across the hole").first.click()
+            page.wait_for_timeout(9000)
+            page.evaluate("window.scrollTo(0, 0)")
+            z = page.locator(".stPlotlyChart").nth(0)
+            zp = MEDIA / "zoom_groove_walls.png"
+            z.screenshot(path=str(zp))
+            print(f"wrote {zp}")
+            page.get_by_text("Overview").first.click()
+            page.wait_for_timeout(6000)
 
             # Mirror-closure variant (both spiral families, like the SW top view)
             page.get_by_text("Mirror golden spiral", exact=False).first.click()
@@ -154,5 +165,57 @@ def main():
             proc.kill()
 
 
+def mesh_wireframe(out: Path) -> None:
+    """Mesh-viewer style close-up of the actual STL triangles near the rim."""
+    import numpy as np
+    import plotly.graph_objects as go
+    from playwright.sync_api import sync_playwright
+
+    sys.path.insert(0, str(ROOT))
+    from boolean_mesh import EXPORT_KW, drop_degenerate, grooved_solid
+    from geometry import TorusParams, all_paths
+
+    p = TorusParams()
+    v, f = grooved_solid(p, **EXPORT_KW)
+    g0 = all_paths(p, 3601, radius=p.tube_radius)[0]
+    S = g0[int(9 / 360 * 3600)]
+    f = drop_degenerate(v, f)
+    keep = np.linalg.norm(v[f].mean(axis=1) - S, axis=1) < 0.2
+    ff = f[keep]
+    used, inv = np.unique(ff, return_inverse=True)
+    vv, ff = v[used] - S, inv.reshape(-1, 3)
+    e = np.concatenate([ff[:, [0, 1]], ff[:, [1, 2]], ff[:, [2, 0]]])
+    seg = np.full((len(e) * 3, 3), np.nan)
+    seg[0::3], seg[1::3] = vv[e[:, 0]], vv[e[:, 1]]
+    N = S / np.linalg.norm(S)
+    fig = go.Figure([
+        go.Mesh3d(x=vv[:, 0], y=vv[:, 1], z=vv[:, 2], i=ff[:, 0], j=ff[:, 1], k=ff[:, 2],
+                  color="#d9b44a", flatshading=True, lighting=dict(ambient=0.5, diffuse=0.8)),
+        go.Scatter3d(x=seg[:, 0], y=seg[:, 1], z=seg[:, 2], mode="lines",
+                     line=dict(color="#333", width=1)),
+    ])
+    eye = N * 1.2 + np.array([0, 0, 0.6])
+    ax = dict(visible=False)
+    fig.update_layout(
+        width=1000, height=800, showlegend=False, paper_bgcolor="white",
+        margin=dict(l=0, r=0, t=40, b=0),
+        title="Actual STL triangles at the outer rim (0.4\" patch): groove walls follow the cutter, no grid steps",
+        scene=dict(xaxis=ax, yaxis=ax, zaxis=ax, aspectmode="data",
+                   camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=0, y=0, z=1))),
+    )
+    html = MEDIA / "_wire.html"
+    fig.write_html(str(html), include_plotlyjs="cdn")
+    with sync_playwright() as pw:
+        b = pw.chromium.launch(headless=True)
+        pg = b.new_page(viewport={"width": 1000, "height": 800})
+        pg.goto(html.as_uri(), wait_until="networkidle")
+        pg.wait_for_timeout(4000)
+        pg.screenshot(path=str(out))
+        b.close()
+    html.unlink()
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
     main()
+    mesh_wireframe(MEDIA / "mesh_wireframe_rim.png")

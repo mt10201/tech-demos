@@ -28,17 +28,8 @@ from geometry import (
     sweeps,
     wrap_advance_deg,
 )
-from torus_mesh import (
-    EXPORT_GRID,
-    PREVIEW_GRID,
-    GrooveField,
-    cross_profile,
-    grooved_torus_mesh,
-    measure_width,
-    mesh_volume,
-    patch_mesh,
-    stl_bytes,
-)
+from boolean_mesh import EXPORT_KW, PREVIEW_KW, crop_solid, display_mesh, drop_degenerate, grooved_solid, section_width, vertex_depth
+from torus_mesh import mesh_volume, stl_bytes
 
 st.set_page_config(page_title="Rodin torus · build123d", page_icon="◎", layout="wide")
 
@@ -75,6 +66,7 @@ with st.sidebar:
                     horizontal=True)
     rotation = st.slider("Start-pole rotation (°)", 0.0, 30.0, 0.0, 0.5)
     show_paths = st.checkbox("Overlay groove centre-lines (3D)", value=False)
+    cam = st.radio("3D camera", ["Overview", "Zoom across the hole"], horizontal=False)
     st.markdown(f"**φ** = `(1+√5)/2` ≈ `{PHI:.6f}`")
 
 try:
@@ -93,13 +85,20 @@ with st.sidebar.expander("Formula"):
 
 @st.cache_data(show_spinner="Meshing grooved torus…", max_entries=8)
 def _mesh(p: TorusParams):
-    return grooved_torus_mesh(p, *PREVIEW_GRID, return_depth=True)
+    v, f = grooved_solid(p, **PREVIEW_KW)  # real mesh boolean, smooth walls
+    v, f = display_mesh(v, f)  # split at creases so smooth shading keeps edges crisp
+    return v, f, vertex_depth(p, v)
 
 
 @st.cache_data(show_spinner="Meshing high-res STL…", max_entries=2)
 def _stl(p: TorusParams):
-    v, f = grooved_torus_mesh(p, *EXPORT_GRID)
+    v, f = _hires(p)
     return stl_bytes(v, f), len(f)
+
+
+@st.cache_data(show_spinner="Boolean-subtracting grooves (high-res)…", max_entries=2)
+def _hires(p: TorusParams):
+    return grooved_solid(p, **EXPORT_KW)
 
 
 @st.cache_data(show_spinner="Sweeping groove cutters in build123d…", max_entries=2)
@@ -137,7 +136,7 @@ with col_view:
             x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
             i=faces[:, 0], j=faces[:, 1], k=faces[:, 2],
             color="#c9a227", flatshading=False,
-            lighting=dict(ambient=0.35, diffuse=0.85, specular=0.4, roughness=0.45, fresnel=0.2),
+            lighting=dict(ambient=0.35, diffuse=0.85, specular=0.25, roughness=0.6, fresnel=0.1),
             lightposition=dict(x=3, y=4, z=6), name="torus", hoverinfo="skip",
         )
     ]
@@ -152,7 +151,8 @@ with col_view:
         scene=dict(
             aspectmode="data", bgcolor="#0e1117",
             xaxis_title="X (in)", yaxis_title="Y (in)", zaxis_title="Z (in)",
-            camera=dict(eye=dict(x=1.15, y=1.15, z=1.05)),
+            camera=(dict(eye=dict(x=1.15, y=1.15, z=1.05)) if cam == "Overview" else
+                    dict(eye=dict(x=0.0, y=-0.95, z=0.30), center=dict(x=0, y=-0.3, z=-0.02))),
         ),
         margin=dict(l=0, r=0, t=0, b=0), height=560, paper_bgcolor="#0e1117",
     )
@@ -208,91 +208,133 @@ elif wall < 0.04:
         "check your printer's minimum feature size."
     )
 
-st.subheader("Close-up: rim vs hole at the same scale")
+st.subheader("Close-up: rim vs hole at the same scale (high-res printable mesh)")
+
+
+def _crop(v, f, centre, radius):
+    return display_mesh(*crop_solid(v, f, centre, radius))
 
 
 @st.cache_data(show_spinner="Rendering close-ups…", max_entries=4)
 def _closeups(p: TorusParams):
-    field = GrooveField(p)
-    g0 = field.paths[0]
-    n = len(g0)
-    out = []
+    v, f = _hires(p)
+    g0 = all_paths(p, 3601, radius=p.tube_radius)[0]
+    out, crops = [], {}
     # 9° past a crossing with the other family (crossings every 180/(2k)° of θ)
     for label, th in (("Outer rim", 9.0), ("Top", 99.0), ("Inner hole", 189.0), ("Bottom", 279.0)):
-        j = int(round(th / 360 * (n - 1)))
-        S = g0[j]
-        theta_c = math.atan2(S[2], math.hypot(S[0], S[1]) - p.major_radius)
-        phi_c = math.atan2(S[1], S[0])
-        w = measure_width(p, g0, j, field)
-        s, dep = cross_profile(p, g0, j, field)
-        out.append((label, theta_c, phi_c, w, s, dep))
-    patches = {lab: patch_mesh(p, tc, pc, half=0.3, n=170, field=field)
-               for lab, tc, pc, *_ in (out[0], out[2])}
-    return out, patches
+        j = int(round(th / 360 * (len(g0) - 1)))
+        S, T = g0[j], g0[j + 1] - g0[j - 1]
+        T = T / np.linalg.norm(T)
+        w, dmax = section_width(p, v, f, S, T)
+        phi = math.atan2(S[1], S[0])
+        c = np.array([p.major_radius * math.cos(phi), p.major_radius * math.sin(phi), 0.0])
+        N = (S - c) / np.linalg.norm(S - c)
+        out.append((label, S, T, N, w, dmax))
+        if label in ("Outer rim", "Inner hole"):
+            crops[label] = _crop(v, f, S, 0.32)
+    return out, crops
 
 
-cl, patches = _closeups(params)
+cl, crops = _closeups(params)
 cz = st.columns(3)
-for col, lab in zip(cz[:2], ("Outer rim", "Inner hole")):
-    v, f, dp, ctrp, nc = patches[lab]
+for col, (lab, S, T, N, w, dmax) in zip(cz[:2], [c for c in cl if c[0] in crops]):
+    v, f = crops[lab]
+    dp = vertex_depth(params, v)
     t = np.clip(dp / (0.35 * params.groove_depth), 0, 1)
     cols = (255 * ((1 - t)[:, None] * np.array([0.55, 0.62, 0.95]) + t[:, None] * np.array([0.80, 0.47, 0.22]))).astype(int)
-    vv = v - ctrp
+    vv = v - S
     figp = go.Figure(go.Mesh3d(
         x=vv[:, 0], y=vv[:, 1], z=vv[:, 2], i=f[:, 0], j=f[:, 1], k=f[:, 2],
         vertexcolor=[f"rgb({a},{b},{c})" for a, b, c in cols], flatshading=False,
-        lighting=dict(ambient=0.5, diffuse=0.8, specular=0.3), hoverinfo="skip",
+        lighting=dict(ambient=0.45, diffuse=0.85, specular=0.2, roughness=0.7), hoverinfo="skip",
     ))
-    rng = [-0.32, 0.32]
-    noax = dict(visible=False, range=rng)
-    eye = nc * 1.1 + np.array([0, 0, 0.35])
+    noax = dict(visible=False, range=[-0.34, 0.34])
+    eye = N * 0.9 + T * 0.55 + np.array([0, 0, 0.25])
     figp.update_layout(
         scene=dict(xaxis=noax, yaxis=noax, zaxis=noax, aspectmode="cube",
-                   camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=0, y=0, z=1),
-                               projection=dict(type="orthographic")),
+                   camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=N[0], y=N[1], z=N[2])),
                    bgcolor="#f4f4f4"),
         margin=dict(l=0, r=0, t=30, b=0), height=360, paper_bgcolor="#f4f4f4",
-        title=dict(text=f"{lab} (0.6\" patch)", x=0.5, font=dict(color="#222", size=13)),
+        title=dict(text=f"{lab}: {w:.4f}\" wide", x=0.5, font=dict(color="#222", size=13)),
     )
     col.plotly_chart(figp, use_container_width=True)
 with cz[2]:
+    import trimesh
+
+    hv, hf = _hires(params)
+    hm = trimesh.Trimesh(vertices=hv, faces=hf, process=False)
     pf = go.Figure()
-    for (lab, _, _, w, s_, dep_), colr in zip(cl, ["#ef4444", "#22c55e", "#3b82f6", "#a855f7"]):
-        pf.add_trace(go.Scatter(x=s_, y=-dep_, mode="lines", line=dict(color=colr, width=2),
-                                name=f"{lab}: {w:.4f}\" wide"))
+    for (lab, S, T, N, w, dmax), colr in zip(cl, ["#ef4444", "#22c55e", "#3b82f6", "#a855f7"]):
+        sec = hm.section(plane_origin=S, plane_normal=T)
+        B = np.cross(T, N)
+        B /= np.linalg.norm(B)
+        for ent in sec.entities:
+            pts = sec.vertices[ent.points]
+            near = np.linalg.norm(pts - S, axis=1) < 0.15
+            if not near.any():
+                continue
+            pts = pts[near]
+            pf.add_trace(go.Scatter(x=(pts - S) @ B, y=-vertex_depth(params, pts), mode="lines",
+                                    line=dict(color=colr, width=2), name=f"{lab}: {w:.4f}\"",
+                                    legendgroup=lab, showlegend=bool(ent is sec.entities[0])))
     pf.update_layout(
         height=360, margin=dict(l=10, r=10, t=30, b=10),
-        title=dict(text="Cross-section ⟂ path (true 3D)", x=0.5, font=dict(size=13)),
+        title=dict(text="Mesh section ⟂ path (actual STL)", x=0.5, font=dict(size=13)),
         xaxis_title="lateral offset (in)", yaxis_title="depth (in)",
-        yaxis=dict(scaleanchor="x"), legend=dict(orientation="h", y=-0.3),
+        xaxis=dict(range=[-0.12, 0.12]), yaxis=dict(scaleanchor="x", range=[-0.15, 0.02]),
+        legend=dict(orientation="h", y=-0.3),
     )
     st.plotly_chart(pf, use_container_width=True)
 
 st.subheader("Downloads")
 d1, d2 = st.columns(2)
 with d1:
-    if st.button(f"Prepare high-res STL ({EXPORT_GRID[0]}×{EXPORT_GRID[1]} grid)",
-                 use_container_width=True):
+    if st.button("Prepare high-res STL (mesh boolean)", use_container_width=True):
         st.session_state["stl"] = (params, *_stl(params))
     if st.session_state.get("stl") and st.session_state["stl"][0] == params:
         _, data_bytes, ntri = st.session_state["stl"]
         st.download_button(f"Download STL — {ntri:,} triangles, {len(data_bytes)/1e6:.0f} MB",
                            data=data_bytes, file_name=f"rodin_torus_{pattern}.stl",
                            mime="model/stl", use_container_width=True)
-    st.caption("STL = finished, watertight grooved solid, ready to slice.")
+    st.caption(
+        "STL = finished, watertight grooved solid from a manifold3d boolean "
+        "(torus − swept U-groove cutters): smooth walls, facet chord error < 0.001\"."
+    )
 with d2:
-    if st.button("Build STEP bodies with build123d", use_container_width=True):
+    if st.button("Prepare STEP — finished solid (build123d, several minutes)",
+                 use_container_width=True):
+        bar = st.progress(0.0, text="Subtracting grooves one at a time in OpenCascade…")
+        try:
+            from rodin_torus import finished_step_bytes
+
+            data_b = finished_step_bytes(
+                params, progress=lambda k, n: bar.progress(k / n, text=f"Groove {k}/{n} subtracted")
+            )
+            st.session_state["step_solid"] = (params, data_b)
+        except Exception as exc:
+            st.error(f"Finished-solid STEP failed ({exc}). Use the cutter-bodies STEP below "
+                     "and Combine ▸ Subtract in SOLIDWORKS.")
+    if st.session_state.get("step_solid") and st.session_state["step_solid"][0] == params:
+        st.download_button("Download STEP (finished grooved solid)",
+                           data=st.session_state["step_solid"][1],
+                           file_name=f"rodin_torus_{pattern}_grooved.step",
+                           mime="application/step", use_container_width=True)
+    st.caption(
+        "Exact B-rep with the grooves already cut: opens in SOLIDWORKS as one solid body. "
+        "Takes about 4–5 min (24 sequential OpenCascade cuts); the file is ~90 MB."
+    )
+    if st.button("Build STEP tool bodies (fast fallback)", use_container_width=True):
         try:
             st.session_state["step"] = (params, _step(params))
         except Exception as exc:  # sweeps can fail on extreme settings
             st.error(f"STEP build failed: {exc}")
     if st.session_state.get("step") and st.session_state["step"][0] == params:
-        st.download_button("Download STEP", data=st.session_state["step"][1],
-                           file_name=f"rodin_torus_{pattern}.step", mime="application/step",
+        st.download_button("Download STEP (torus + cutter bodies)", data=st.session_state["step"][1],
+                           file_name=f"rodin_torus_{pattern}_bodies.step", mime="application/step",
                            use_container_width=True)
     st.caption(
-        "STEP = exact B-rep **torus + groove cutter bodies + centre-lines**. In SOLIDWORKS: "
-        "Insert ▸ Features ▸ Combine ▸ **Subtract** (torus minus all grooves)."
+        "Fallback: torus + groove cutter bodies + centre-lines. In SOLIDWORKS: "
+        "Insert ▸ Features ▸ Combine ▸ **Subtract** (main body = torus, bodies to subtract = all grooves)."
     )
 
 with st.expander("Groove centre-line diagram (front view)"):

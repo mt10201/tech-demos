@@ -29,7 +29,6 @@ These numbers come from a polar unwrap and copper-colour mask of the photo:
 - **Proportions:** the photo's hole is about 138 px against an OD of about 603 px, so hole/OD ≈ **0.23** and r/R ≈ 0.63. The owner's part is 0.333 and 0.50: a noticeably bigger hole and a slimmer tube.
 
 ## How the grooves are built
-## How the grooves are built
 
 Torus coordinates: `point(θ, φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)`, with θ around the tube (0 = outer equator/rim, 90° = front face, 180° = hole) and φ around the main axis.
 
@@ -63,17 +62,22 @@ For these presets, the numeric minimum-wall check also flags merging at 3/16" de
 
 ## Outputs
 
-- **3D preview, front view and STL:** an analytic, watertight mesh with **constant true-3D groove width** (`torus_mesh.py`):
-  1. Each groove centre-line is traced on the torus surface and sampled as a 3D polyline, spaced about width/4.
-  2. The torus is meshed on a periodic (θ, φ) grid. For every surface vertex, a KD-tree finds nearby polyline vertices, and a nearest-segment search over their adjacent segments gives the exact 3D distance `t` to the closest centre-line.
-  3. The vertex is pushed in along its surface normal by `depth(t) = (d − ρ) + √(ρ² − t²)` for `|t| < w/2` (otherwise 0). Where grooves cross, the deepest cut wins.
+- **3D preview, front view and STL: real mesh boolean** (`boolean_mesh.py`, [manifold3d](https://github.com/elalish/manifold)). This replaces the earlier heightfield, whose grid aliasing caused stair-stepped groove walls.
+  1. The torus is tessellated from its chord error: segment counts around the axis and the tube are chosen so that no facet deviates more than `chord` from the true surface.
+  2. Each groove's centre-line is traced on the surface. Grooves that join end-to-start are chained into closed loops: the photo preset gives 4 loops, 2 per direction.
+  3. The U profile (straight walls plus a semicircular floor of radius w/2, extended 0.03" above the surface) is swept along each loop. The sweep uses a frame built from the torus normal, so the walls stay normal to the surface.
+  4. `torus − union(all cutter tubes)` is evaluated by manifold3d. The result is guaranteed manifold, and every wall and floor is a swept surface, not a grid.
 
-  Width therefore no longer scales with the local circumference `R + r cos θ`. The measured width perpendicular to the path, 9° away from a crossing, is 0.1249" at the outer rim, 0.1249" on top, 0.1250" at the hole and 0.1249" on the bottom (`tests/test_geometry.py::test_groove_width_constant_in_3d`).
-  - The live preview uses a 180×720 grid (259,200 triangles, about 7.6 samples per groove width at the rim).
-  - **Prepare high-res STL** uses a 400×1600 grid: 1,280,000 triangles, a 64.0 MB binary STL, watertight and winding-consistent (trimesh). That's about 15 samples per 1/8" groove width around the 13.1" rim and about 11 across the tube.
-- **Close-up section:** 0.6" patches at the outer rim and the inner hole at the same scale, plus overlaid cross-sections at rim, top, hole and bottom. All four profiles are identical.
+  | | chord error | step along path | arc segments | triangles | binary STL | time |
+  |---|---|---|---|---|---|---|
+  | Live preview | 0.002" | 0.05" | 8 | ~130 k | — | ~0.6 s |
+  | **Prepare high-res STL** | **0.0005"** | 0.02" | 24 | **579,960** | **29.0 MB** | ~2 s |
+
+  The high-res STL is watertight and winding-consistent (trimesh), with volume 10.926 in³. Width, measured on the actual STL by slicing it with a plane perpendicular to the path 9° away from a crossing: **0.12500" at the rim, 0.12499" on top, 0.12500" at the hole, 0.12500" on the bottom**. The floor is 0.125" deep at all four (`tests/test_geometry.py::test_boolean_mesh_groove_width_and_depth`). For display only, the preview drops zero-area slivers and splits vertices at creases sharper than 35°, so smooth shading keeps the groove lips crisp.
+- **Close-up section:** 0.64"-diameter samples of the high-res STL at the outer rim and the inner hole, at the same scale. Each is cut out with a manifold ball intersection. Alongside them are cross-sections of the actual STL at rim, top, hole and bottom; all four profiles are identical. The sidebar's *3D camera ▸ Zoom across the hole* gives a close-up of the groove walls.
 - **Front view:** an orthographic view looking along the axis, like the photo. Tiles are rainbow-coloured by azimuth and grooves are copper.
-- **STEP**: exact build123d B-rep **torus + swept groove cutter bodies + centre-line splines** (24 for the photo preset). The U profile is swept with an auxiliary spine, so its walls stay normal to the torus along the whole wrap. OpenCascade's own `torus − cutters` boolean is unreliable for these long helical pipes (it returns invalid solids), so do the subtraction in SOLIDWORKS: open the STEP → *Insert ▸ Features ▸ Combine ▸ Subtract* (main body = torus, subtract = all groove bodies).
+- **Prepare STEP — finished solid:** a true B-rep with the grooves already subtracted (`rodin_torus.finished_solid`). The torus and 24 swept U cutters come from build123d. The U profile uses an auxiliary spine, so the walls stay normal to the torus. Cutting everything in one OpenCascade boolean, or cutting a union of all cutters, returns invalid shapes. **Sequential fuzzy cuts work**: one `BRepAlgoAPI_Cut` per groove with fuzzy value 1e-4 (retried at 1e-3), and after each cut the result is checked to be a valid solid with decreasing volume. For the photo preset the result is a valid solid of 10.9447 in³ with 1693 faces, and it re-imports as 1 valid solid. It takes about 4–5 min and the STEP is about 92 MB (about 26 MB zipped), which is why it is built on demand rather than committed.
+- **Build STEP tool bodies (fast fallback):** the torus, cutter bodies and centre-lines, in seconds. In SOLIDWORKS: open the STEP → *Insert ▸ Features ▸ Combine* → *Operation type: Subtract* → *Main body*: the torus → *Bodies to subtract*: all 24 groove bodies → ✓.
 - **Generated build123d snippet** for the current slider values (it produces the same STEP bodies).
 
 ## Run
@@ -100,16 +104,17 @@ streamlit run app.py
 ## Tests / screenshots
 
 ```bash
-pytest -q          # geometry math, mesh, and B-rep cutter smoke tests
+pytest -q          # geometry math, boolean mesh width/depth/watertight, B-rep cutter smoke tests
 REFERENCE_PHOTO=/path/to/photo.png python capture.py
-# writes media/preview.png, front_view.png, compare_photo.png (needs REFERENCE_PHOTO),
-#        preview_mirror.png, screenshot.png, snippet.png
+# writes media/preview.png, front_view.png, closeup_rim_vs_hole.png, zoom_groove_walls.png,
+#        mesh_wireframe_rim.png (actual STL triangles), preview_mirror.png, screenshot.png,
+#        snippet.png, and compare_photo.png (only when REFERENCE_PHOTO is set)
 ```
 
 ## Make your own shapes
 
 1. **Sliders first.** Everything in the sidebar is live: preset, R, r, depth, width, sweep (photo preset), handedness and start rotation. Check the *Min wall* metric before printing.
-2. **Copy the generated snippet.** The *Generated build123d snippet* at the bottom of the page is a standalone script for the current settings. Run it with `python snippet.py` to get a STEP (torus plus cutter bodies) you can open in SOLIDWORKS and *Combine ▸ Subtract*.
+2. **Copy the generated snippet.** The *Generated build123d snippet* at the bottom of the page is a standalone script for the current settings. Run it with `python snippet.py` to get a STEP (torus plus cutter bodies) you can open in SOLIDWORKS and *Combine ▸ Subtract*. Or use **Prepare STEP — finished solid** in the app.
 3. **Edit the geometry functions.**
    - **[`geometry.py`](geometry.py)** holds all the shape maths.
      - `TorusParams` sets the defaults: `major_radius`, `tube_radius`, `n_grooves` (per direction), `groove_depth`, `groove_width`, `pattern`, `sweep_deg`, `handedness` and `rotation_deg`.
@@ -117,6 +122,7 @@ REFERENCE_PHOTO=/path/to/photo.png python capture.py
      - `families(p)` decides whether one or both rotational directions are cut.
      - `groove_path` and `all_paths` turn that into 3D centre-lines.
      - To add a preset, add a name to `PATTERNS` and `PATTERN_LABELS` and a branch in `sweeps()` / `azimuth_offset()`.
-   - **[`torus_mesh.py`](torus_mesh.py)** turns any set of centre-lines into the grooved STL. `PREVIEW_GRID` and `EXPORT_GRID` set the resolution.
-   - **[`rodin_torus.py`](rodin_torus.py)** builds the build123d B-rep (`Solid.make_torus`, `Solid.sweep` of a `Circle` along `Edge.make_spline`) for STEP.
+   - **[`boolean_mesh.py`](boolean_mesh.py)** turns any set of centre-lines into the grooved STL by mesh boolean. `u_profile()` is the cutter cross-section, so change it for square or V channels. `PREVIEW_KW` and `EXPORT_KW` set the resolution.
+   - **[`rodin_torus.py`](rodin_torus.py)** builds the build123d B-rep (`Solid.make_torus`, `Solid.sweep` of the U face along `Edge.make_spline`) and `finished_solid()` for the subtracted STEP.
+   - `torus_mesh.py` is the older heightfield mesher, kept for comparison and tests.
 4. **Learn build123d** at the docs: https://build123d.readthedocs.io (Tutorials, then *Builders* vs *Algebra*). Swap `Circle` for another profile, e.g. `Rectangle` for square channels, or `Solid.make_torus` for any other base solid.
