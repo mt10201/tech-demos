@@ -4,28 +4,31 @@ Units: **inches** (matches the owner's SOLIDWORKS sketch).
 
 Torus coordinates
 -----------------
-    φ  (phi)   – azimuth around the main Z axis
-    θ  (theta) – angle around the tube, 0 = outer equator, +90° = top
+    φ  (phi)   – azimuth around the main Z axis (the axis you look along in
+                 the "front view" / the photo)
+    θ  (theta) – angle around the tube: 0 = outer equator (rim),
+                 90° = front face, 180° = inner equator (hole)
     point(θ, φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)
 
-Each groove is one full wrap around the tube (θ: 0 → 360°) that also travels
-around the main axis.  On the **top half** (θ 0 → 180°, outer equator → inner
-equator) the azimuth is chosen so that the path, seen from directly above, is
-an exact **golden logarithmic spiral**: its projected radius shrinks by φ for
-every 90° of azimuth,
+Patterns
+--------
+``photo`` (default, "Photo replica")
+    The lattice measured from the owner's photo of a real Rodin coil frame:
+    12 grooves in **each** rotational direction (24 total).  Every groove is a
+    constant-pitch helix on the torus,
 
-    q(θ)   = R + ρ cos θ                       (projected radius)
-    φ(θ)   = φ₀ + (π/2) · log_φ(q_max / q(θ))
-    Δ_top  = (π/2) · log_φ(q_max / q_min)      (≈ 205.5° for 1.39 / 0.695)
+        φ(θ) = φ₀ ± (sweep / 180°) · θ,      θ: 0 → 360°
 
-The **bottom half** (θ 180 → 360°) climbs back out to the outer equator with
-the same log profile, sweeping Δ_bottom:
+    so it travels ``sweep`` degrees around the axis between rim and hole
+    (≈150° in the photo) and 2·sweep per full wrap.  The two families cross
+    and leave raised rhombus tiles that shrink toward the hole.
 
-    * "rodin"  – Δ_bottom = 510° − Δ_top, so each wrap advances 150° (5 of 12
-                 poles, the classic Rodin skip) and the 12 grooves chain
-                 end-to-start into one continuous closed winding.
-    * "mirror" – Δ_bottom = Δ_top, so the bottom is the mirror golden spiral
-                 too (12 open-ended grooves, ends land between poles).
+``rodin`` / ``mirror``
+    The earlier golden-spiral variants: one family of 12; on the front half
+    (θ 0 → 180°) the path seen along the axis is an exact golden logarithmic
+    spiral, φ = φ₀ + (π/2)·log_φ(q_max/q) with q = R + ρ cos θ.  The back half
+    closes the Rodin 150° skip (rodin: 510° per wrap, grooves chain i → i+5)
+    or mirrors the golden spiral (mirror).
 """
 
 from __future__ import annotations
@@ -38,7 +41,13 @@ import numpy as np
 
 PHI = (1.0 + math.sqrt(5.0)) / 2.0  # ≈ 1.6180339887
 RODIN_ADVANCE_DEG = 510.0  # 360° + 150° (skip 5 of 12 poles)
-CLOSURES = ("rodin", "mirror")
+PATTERNS = ("photo", "rodin", "mirror")
+PATTERN_LABELS = {
+    "photo": "Photo replica — 12 + 12 crisscross lattice",
+    "rodin": "Rodin golden spiral — 12 grooves, 150° skip, closed winding",
+    "mirror": "Mirror golden spiral — 12 open grooves",
+}
+PHOTO_SWEEP_DEG = 150.0  # measured from the photo: rim → hole travel
 
 
 @dataclass(frozen=True)
@@ -47,11 +56,12 @@ class TorusParams:
 
     major_radius: float = 1.39  # axis → tube centre
     tube_radius: float = 0.695  # minor radius
-    n_grooves: int = 12
-    groove_depth: float = 0.1875  # 3/16"
-    groove_width: float = 0.375  # = 2 × depth → true semicircle
-    closure: str = "rodin"  # "rodin" | "mirror"
-    handedness: int = 1  # +1 counter-clockwise from above, -1 clockwise
+    n_grooves: int = 12  # per direction
+    groove_depth: float = 0.125  # 1/8" (photo-like walls; slider to 1/4")
+    groove_width: float = 0.25  # = 2 × depth → true semicircle
+    pattern: str = "photo"  # "photo" | "rodin" | "mirror"
+    sweep_deg: float = PHOTO_SWEEP_DEG  # photo pattern: azimuth travelled rim → hole
+    handedness: int = 1  # +1 / -1 mirrors the whole pattern
     rotation_deg: float = 0.0  # start pole of groove 0
 
 
@@ -68,10 +78,12 @@ def validate(p: TorusParams) -> None:
         raise ValueError(
             "groove_width must be >= 2 × depth (narrower would undercut the semicircle)"
         )
-    if p.closure not in CLOSURES:
-        raise ValueError(f"closure must be one of {CLOSURES}")
+    if p.pattern not in PATTERNS:
+        raise ValueError(f"pattern must be one of {PATTERNS}")
     if p.handedness not in (1, -1):
         raise ValueError("handedness must be +1 or -1")
+    if not (0.0 < p.sweep_deg <= 720.0):
+        raise ValueError("sweep_deg must be in (0, 720]")
 
 
 def cutter_radius(p: TorusParams) -> float:
@@ -106,11 +118,14 @@ def golden_spiral_radius(q_max: float, dphi: float) -> float:
 
 
 def sweeps(p: TorusParams) -> Tuple[float, float]:
-    """(Δ_top, Δ_bottom) in radians."""
+    """(front-half sweep, back-half sweep) in radians for one wrap."""
     validate(p)
+    if p.pattern == "photo":
+        s = math.radians(p.sweep_deg)
+        return s, s
     q_min, q_max = projected_limits(p)
     top = spiral_sweep(q_min, q_max)
-    if p.closure == "rodin":
+    if p.pattern == "rodin":
         bottom = math.radians(RODIN_ADVANCE_DEG) - top
         if bottom <= 0:
             raise ValueError("torus too fat for a 510° Rodin wrap")
@@ -124,6 +139,11 @@ def wrap_advance_deg(p: TorusParams) -> float:
     return math.degrees(top + bottom)
 
 
+def families(p: TorusParams) -> List[int]:
+    """Rotational directions present: photo has both, golden patterns one."""
+    return [p.handedness, -p.handedness] if p.pattern == "photo" else [p.handedness]
+
+
 def start_angles_deg(p: TorusParams) -> List[float]:
     step = 360.0 / p.n_grooves
     return [(p.rotation_deg + i * step) % 360.0 for i in range(p.n_grooves)]
@@ -133,6 +153,8 @@ def azimuth_offset(p: TorusParams, theta: np.ndarray) -> np.ndarray:
     """Azimuth travelled (radians, ≥0) at tube angle θ ∈ [0, 2π] along one wrap."""
     theta = np.asarray(theta, dtype=float)
     top, bottom = sweeps(p)
+    if p.pattern == "photo":
+        return theta * (top / math.pi)
     q_min, q_max = projected_limits(p)
     q = p.major_radius + path_radius(p) * np.cos(theta)
     s = np.log(q_max / q) / math.log(q_max / q_min)  # 0 at outer, 1 at inner
@@ -140,40 +162,84 @@ def azimuth_offset(p: TorusParams, theta: np.ndarray) -> np.ndarray:
     return np.where(theta <= math.pi, s * top, top + (1.0 - s) * bottom)
 
 
-def groove_path(p: TorusParams, index: int, n: int = 241) -> np.ndarray:
+def groove_path(
+    p: TorusParams, index: int, n: int = 241, direction: int | None = None
+) -> np.ndarray:
     """(n, 3) points of the cutter axis for groove ``index`` (one full wrap)."""
     theta = np.linspace(0.0, 2.0 * math.pi, n)
     phi0 = math.radians(start_angles_deg(p)[index])
-    phi = phi0 + p.handedness * azimuth_offset(p, theta)
+    hand = p.handedness if direction is None else direction
+    phi = phi0 + hand * azimuth_offset(p, theta)
     rp = path_radius(p)
     q = p.major_radius + rp * np.cos(theta)
     return np.column_stack([q * np.cos(phi), q * np.sin(phi), rp * np.sin(theta)])
 
 
 def all_paths(p: TorusParams, n: int = 241) -> List[np.ndarray]:
-    return [groove_path(p, i, n) for i in range(p.n_grooves)]
+    """Every groove axis: n_grooves per family (family order = ``families``)."""
+    return [
+        groove_path(p, i, n, direction=fam)
+        for fam in families(p)
+        for i in range(p.n_grooves)
+    ]
 
 
-def min_strand_gap(p: TorusParams) -> float:
-    """Centre-to-centre spacing of neighbouring grooves at the inner equator.
+def min_centre_spacing(p: TorusParams, n: int = 721) -> Tuple[float, float]:
+    """(spacing, θ_deg): closest approach of two same-direction groove centre-lines.
 
-    Paths cross the inner equator meridionally (dφ/dθ = 0 there), so the gap is
-    simply the arc between crossings on the cutter-axis circle.  Compare it with
-    the groove width: if gap < width, neighbouring grooves merge at the hole.
+    Crossing grooves of the *other* direction are meant to intersect (that is
+    the lattice), so only same-direction neighbours bound the tile walls.
+    Samples within 4% of a groove's ends are skipped so chained grooves
+    (end of i == start of j) don't count as a collision.
     """
-    q_min, _ = projected_limits(p)
-    return 2.0 * math.pi * q_min / p.n_grooves
+    validate(p)
+    from scipy.spatial import cKDTree
+
+    k = max(1, int(0.04 * n))
+    theta = np.linspace(0.0, 360.0, n)[k:-k]
+    paths = [groove_path(p, i, n)[k:-k] for i in range(p.n_grooves)]
+    if len(paths) < 2:
+        return float("inf"), 0.0
+    others = np.vstack(paths[1:])
+    d, _ = cKDTree(others).query(paths[0])
+    j = int(np.argmin(d))
+    return float(d[j]), float(theta[j])
 
 
-def describe_formula() -> str:
+def min_wall(p: TorusParams) -> Tuple[float, float]:
+    """(wall, θ_deg): thinnest raised wall left between neighbouring grooves.
+
+    wall = centre-line spacing − groove width (measured at the surface).
+    Negative means the neighbouring grooves merge there.
+    """
+    s, th = min_centre_spacing(p)
+    # centre-lines run at tube radius ρ_axis; scale the spacing to the surface
+    s_surface = s * p.tube_radius / path_radius(p)
+    return s_surface - p.groove_width, th
+
+
+def photo_wall_analytic(p: TorusParams) -> float:
+    """Closed-form wall at the hole for the photo pattern (for tests/README).
+
+    At the inner equator neighbours are 2π/N apart in φ on a circle of radius
+    q = R − ρ; the helix crosses it at angle α with tan α = ρ / (q·k),
+    k = sweep/180°, so the perpendicular spacing is (2πq/N)·sin α.
+    """
+    rp = path_radius(p)
+    q = p.major_radius - rp
+    k = p.sweep_deg / 180.0
+    spacing = (2 * math.pi * q / p.n_grooves) * rp / math.hypot(rp, q * k)
+    return spacing * p.tube_radius / rp - p.groove_width
+
+
+def describe_formula(p: TorusParams | None = None) -> str:
+    sweep = p.sweep_deg if p else PHOTO_SWEEP_DEG
     return (
         "Units: inches.  φ = (1+√5)/2 ≈ 1.6180339887\n"
         "point(θ,φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)\n"
-        "ρ_axis   = r − depth + cutter_r      cutter_r = (w²/4 + d²)/(2d)\n"
-        "Top half (θ 0→180°): φ = φ₀ + (π/2)·log_φ(q_max / q)   q = R + ρ_axis cos θ\n"
-        "  → seen from above, each groove is a golden spiral (radius ÷ φ per 90°)\n"
-        "Δ_top = (π/2)·log_φ(q_max/q_min)\n"
-        "Bottom half: rodin → Δ_bot = 510° − Δ_top (150° pole skip, closed winding)\n"
-        "             mirror → Δ_bot = Δ_top (mirror golden spiral, open ends)\n"
-        "12 grooves start at φ₀ = rotation + i·30° on the outer equator."
+        "ρ_axis = r − depth + cutter_r      cutter_r = (w²/4 + d²)/(2d)\n"
+        f"Photo replica: φ = φ₀ ± ({sweep:.0f}°/180°)·θ, θ 0→360°, 12 grooves per sign\n"
+        "  φ₀ = rotation + i·30°  → crisscross lattice, rhombus tiles\n"
+        "Golden: front half φ = φ₀ + (π/2)·log_φ(q_max/q), q = R + ρ_axis cos θ\n"
+        "  back half rodin → 510° per wrap (150° skip), mirror → same spiral"
     )

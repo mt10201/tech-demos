@@ -24,10 +24,25 @@ from scipy.spatial import cKDTree
 from geometry import TorusParams, all_paths, cutter_radius, path_radius, validate
 
 
+PREVIEW_GRID = (160, 640)  # live sliders
+EXPORT_GRID = (320, 1280)  # STL download (~0.8 M triangles)
+
+
 def grooved_torus_mesh(
-    p: TorusParams, n_theta: int = 160, n_phi: int = 640, path_samples: int = 1500
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Return (vertices (N,3), faces (M,3)) of the closed grooved torus."""
+    p: TorusParams,
+    n_theta: int = PREVIEW_GRID[0],
+    n_phi: int = PREVIEW_GRID[1],
+    path_samples: int | None = None,
+    return_depth: bool = False,
+):
+    """Return (vertices (N,3), faces (M,3)) of the closed grooved torus.
+
+    With ``return_depth=True`` also returns each vertex's depth below the plain
+    torus surface (0 on tiles, up to ``groove_depth`` in a groove).
+    """
+    if path_samples is None:
+        # keep axis samples denser than the grid so groove walls stay smooth
+        path_samples = max(1500, 2 * n_theta + n_phi)
     validate(p)
     R, r = p.major_radius, p.tube_radius
     rho = cutter_radius(p)
@@ -76,6 +91,8 @@ def grooved_torus_mesh(
     faces = np.concatenate(
         [np.stack([a, d, c], -1).reshape(-1, 3), np.stack([a, c, b], -1).reshape(-1, 3)]
     )
+    if return_depth:
+        return verts, faces, r - lam
     return verts, faces
 
 

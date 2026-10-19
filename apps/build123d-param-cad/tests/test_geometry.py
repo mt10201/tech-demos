@@ -13,7 +13,10 @@ from geometry import (
     cutter_radius,
     golden_spiral_radius,
     groove_path,
-    min_strand_gap,
+    min_wall,
+    photo_wall_analytic,
+    families,
+    PHOTO_SWEEP_DEG,
     path_radius,
     projected_limits,
     spiral_sweep,
@@ -34,7 +37,9 @@ def test_defaults_match_solidworks_sketch():
     assert p.major_radius == pytest.approx(1.39)
     assert p.tube_radius == pytest.approx(0.695)
     assert p.n_grooves == 12
-    assert p.groove_depth == pytest.approx(0.1875)
+    assert p.pattern == "photo"
+    assert p.groove_depth == pytest.approx(0.125)
+    assert p.groove_width == pytest.approx(0.25)
 
 
 def test_semicircle_profile():
@@ -58,7 +63,7 @@ def test_twelve_poles_thirty_degrees():
 
 
 def test_top_half_is_golden_spiral_from_above():
-    p = TorusParams()
+    p = TorusParams(pattern="rodin")
     pts = groove_path(p, 0, 2001)
     top = pts[pts[:, 2] >= 0]
     q = np.hypot(top[:, 0], top[:, 1])
@@ -71,14 +76,14 @@ def test_top_half_is_golden_spiral_from_above():
 
 
 def test_spiral_sweep_for_owner_dims():
-    p = TorusParams()
+    p = TorusParams(pattern="rodin", groove_depth=0.1875, groove_width=0.375)
     q_min, q_max = projected_limits(p)
     assert q_max / q_min == pytest.approx(3.0)  # 2.085 / 0.695
     assert math.degrees(spiral_sweep(q_min, q_max)) == pytest.approx(205.471, abs=1e-3)
 
 
 def test_rodin_closure_chains_grooves():
-    p = TorusParams(closure="rodin")
+    p = TorusParams(pattern="rodin")
     assert wrap_advance_deg(p) == pytest.approx(510.0)
     paths = all_paths(p, 401)
     # end of groove i == start of groove i+5 (mod 12): one continuous winding
@@ -87,7 +92,7 @@ def test_rodin_closure_chains_grooves():
 
 
 def test_mirror_closure_is_symmetric():
-    p = TorusParams(closure="mirror")
+    p = TorusParams(pattern="mirror")
     top, bottom = sweeps(p)
     assert top == pytest.approx(bottom)
     th = np.linspace(0, 2 * math.pi, 9)
@@ -104,14 +109,11 @@ def test_paths_lie_on_axis_torus():
 
 
 def test_handedness_mirrors_top_view():
-    a = groove_path(TorusParams(handedness=1), 0)
-    b = groove_path(TorusParams(handedness=-1), 0)
+    a = groove_path(TorusParams(pattern="rodin", handedness=1), 0)
+    b = groove_path(TorusParams(pattern="rodin", handedness=-1), 0)
     assert np.allclose(a[:, 1], -b[:, 1]) and np.allclose(a[:, 0], b[:, 0])
 
 
-def test_strand_gap():
-    p = TorusParams()
-    assert min_strand_gap(p) == pytest.approx(2 * math.pi * 0.695 / 12)
 
 
 def test_mesh_closed_and_lighter_than_plain_torus():
@@ -133,4 +135,55 @@ def test_invalid_params():
     with pytest.raises(ValueError):
         validate(TorusParams(tube_radius=2.0, major_radius=1.0))
     with pytest.raises(ValueError):
-        validate(TorusParams(closure="bogus"))
+        validate(TorusParams(pattern="bogus"))
+
+
+# ---- Photo replica lattice ------------------------------------------------
+
+def test_photo_lattice_has_12_per_direction():
+    p = TorusParams()
+    assert families(p) == [1, -1]
+    paths = all_paths(p, 181)
+    assert len(paths) == 24
+    # the two families are mirror images of each other (y → −y)
+    assert np.allclose(paths[0][:, 1], -paths[12][:, 1])
+
+
+def test_photo_constant_pitch_sweep():
+    p = TorusParams()
+    pts = groove_path(p, 0, 721)
+    ang = np.unwrap(np.arctan2(pts[:, 1], pts[:, 0]))
+    # rim (θ=0) → hole (θ=180°) travels the measured 150°
+    assert math.degrees(ang[360] - ang[0]) == pytest.approx(PHOTO_SWEEP_DEG)
+    # linear in θ (constant helix pitch)
+    assert np.allclose(np.diff(ang), np.diff(ang)[0])
+    assert wrap_advance_deg(p) == pytest.approx(300.0)
+
+
+def test_photo_grooves_chain_into_closed_loops():
+    p = TorusParams()
+    paths = all_paths(p, 401)
+    # 300° advance = 10 poles: end of groove i is the start of groove i+10
+    for i in range(12):
+        assert np.allclose(paths[i][-1], paths[(i + 10) % 12][0], atol=1e-9)
+
+
+def test_photo_wall_numeric_matches_closed_form():
+    for d in (0.125, 0.1875):
+        p = TorusParams(groove_depth=d, groove_width=2 * d)
+        wall, theta = min_wall(p)
+        assert wall == pytest.approx(photo_wall_analytic(p), abs=2e-3)
+        assert theta == pytest.approx(180.0, abs=10.0)  # thinnest at the hole
+    assert min_wall(TorusParams())[0] == pytest.approx(0.0296, abs=2e-3)  # 1/8" default
+    assert min_wall(TorusParams(groove_depth=0.1875, groove_width=0.375))[0] < 0  # merges
+
+
+def test_export_mesh_watertight():
+    import trimesh
+
+    from torus_mesh import EXPORT_GRID
+
+    v, f = grooved_torus_mesh(TorusParams(), *EXPORT_GRID)
+    m = trimesh.Trimesh(vertices=v, faces=f, process=False)
+    assert m.is_watertight and m.is_winding_consistent
+    assert len(f) == 2 * EXPORT_GRID[0] * EXPORT_GRID[1]

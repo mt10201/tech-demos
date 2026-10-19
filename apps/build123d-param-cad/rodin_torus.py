@@ -7,11 +7,11 @@ So the STEP export ships the **exact B-rep tool bodies** for the CAD system to
 combine:
 
     body "torus"            – the plain torus (R, r)
-    bodies "groove_00..11"  – circular-profile sweeps along each groove axis
-    wires  "axis_00..11"    – the groove centre-lines (spline, inches)
+    bodies "groove_00.."   – circular-profile sweeps along each groove axis (24 for the photo lattice, 12 otherwise)
+    wires  "axis_00.."     – the groove centre-lines (spline, inches)
 
 In SOLIDWORKS: open the STEP → Insert ▸ Features ▸ Combine ▸ Subtract
-(main body = torus, bodies to subtract = the 12 grooves).  The finished,
+(main body = torus, bodies to subtract = all groove bodies).  The finished,
 already-grooved part is the STL (analytic mesh, see ``torus_mesh.py``).
 """
 

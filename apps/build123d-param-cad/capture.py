@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -12,6 +13,40 @@ MEDIA = ROOT / "media"
 MEDIA.mkdir(exist_ok=True)
 PORT = 8511
 URL = f"http://127.0.0.1:{PORT}"
+
+
+PHOTO = os.environ.get("REFERENCE_PHOTO", "")  # optional path to the owner's photo
+
+
+def compose_comparison(photo: Path, render: Path, out: Path) -> None:
+    """Photo (left) and app front view (right) at the same height, labelled."""
+    from PIL import Image, ImageDraw
+
+    a = Image.open(photo).convert("RGB")
+    b = Image.open(render).convert("RGB")
+    # crop the render to its content (drop the flat background margin)
+    bg = b.getpixel((2, 2))
+    diff = Image.eval(
+        Image.merge("RGB", [c.point(lambda v, k=k: 255 if abs(v - bg[k]) > 12 else 0)
+                            for k, c in enumerate(b.split())]).convert("L"),
+        lambda v: v,
+    )
+    box = diff.getbbox()
+    if box:
+        pad = 12
+        b = b.crop((max(0, box[0] - pad), max(0, box[1] - pad),
+                    min(b.width, box[2] + pad), min(b.height, box[3] + pad)))
+    h = 640
+    a = a.resize((int(a.width * h / a.height), h))
+    b = b.resize((int(b.width * h / b.height), h))
+    canvas = Image.new("RGB", (a.width + b.width + 30, h + 40), "white")
+    canvas.paste(a, (0, 40))
+    canvas.paste(b, (a.width + 30, 40))
+    d = ImageDraw.Draw(canvas)
+    d.text((10, 12), "Reference photo (real Rodin coil frame)", fill="black")
+    d.text((a.width + 40, 12), "App front view: Photo replica preset (R 1.39, r 0.695 in)", fill="black")
+    canvas.save(out)
+    print(f"wrote {out}")
 
 
 def ensure_browsers():
@@ -76,6 +111,17 @@ def main():
             shot = MEDIA / "screenshot.png"
             page.screenshot(path=str(shot), full_page=True)
             print(f"wrote {shot}")
+
+            # Front view element + side-by-side with the reference photo
+            front = page.locator(".stPlotlyChart").nth(1)
+            front.scroll_into_view_if_needed()
+            page.wait_for_timeout(1500)
+            fv = MEDIA / "front_view.png"
+            front.screenshot(path=str(fv))
+            print(f"wrote {fv}")
+            if PHOTO and Path(PHOTO).exists():
+                compose_comparison(Path(PHOTO), fv, MEDIA / "compare_photo.png")
+            page.evaluate("window.scrollTo(0, 0)")
 
             # Mirror-closure variant (both spiral families, like the SW top view)
             page.get_by_text("Mirror golden spiral", exact=False).first.click()
