@@ -156,6 +156,23 @@ def main():
             shot2 = MEDIA / "snippet.png"
             page.screenshot(path=str(shot2), full_page=False)
             print(f"wrote {shot2}")
+
+            # Mold master mode (back on the Photo replica preset)
+            page.evaluate("window.scrollTo(0, 0)")
+            page.get_by_text("Photo replica", exact=False).first.click()
+            page.wait_for_timeout(8000)
+            page.get_by_text("Mold master", exact=True).first.click()
+            page.wait_for_timeout(25_000)
+            page.evaluate("window.scrollTo(0, 0)")
+            mp = MEDIA / "mold_preview.png"
+            page.screenshot(path=str(mp), full_page=False)
+            print(f"wrote {mp}")
+            for idx, name in ((0, "mold_in_frame.png"), (1, "mold_master_B.png"), (2, "mold_section.png")):
+                el = page.locator(".stPlotlyChart").nth(idx)
+                el.scroll_into_view_if_needed()
+                page.wait_for_timeout(1500)
+                el.screenshot(path=str(MEDIA / name))
+                print(f"wrote {MEDIA / name}")
             browser.close()
     finally:
         proc.terminate()

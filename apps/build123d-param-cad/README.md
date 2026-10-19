@@ -90,6 +90,45 @@ For these presets, the numeric minimum-wall check also flags merging at 3/16" de
 - **Build STEP tool bodies (fast fallback):** the torus, cutter bodies and centre-lines (mm), in about 10 s. In SOLIDWORKS: open the STEP → *Insert ▸ Features ▸ Combine* → *Operation type: Subtract* → *Main body*: the torus → *Bodies to subtract*: all 24 groove bodies → ✓.
 - **Generated build123d snippet** for the current slider values (it produces the same STEP bodies).
 
+## Mold master (silicone mold, two halves)
+
+Sidebar ▸ **Mode ▸ Mold master** turns the current torus into positives to pour silicone over, laid out like a classic box mold: a light floor plate with half the grooved torus standing on it, four hemisphere registration keys in the corners, and a separate square pour frame around the plate (`mold.py`, `mold_page.py`).
+
+- **Master A**: a square plate, the **top half** of the grooved torus (split at the equator z = 0, flat face fused to the plate) and 4 hemisphere key **bumps**. The plate runs under the donut hole, so the silicone fills the hole.
+- **Master B**: the same plate with 4 hemisphere key **sockets** and the **bottom half**, turned over by a 180° rotation about X, (x, y, z) → (x, −y, −z). That is a rotation, not a mirror, so the casting isn't mirrored. Bumps on A make dimples in silicone A; sockets on B make bumps in silicone B. The keys sit at (±a, ±a), which maps onto itself under the rotation, so the two silicone halves register.
+- **Symmetry:** the groove lattice is symmetric across the equator. Both families start on the same 12 poles: the 180° X-rotation maps the + family onto itself and the start angles {0°, 30°, …} onto themselves, so **the turned-over bottom half is identical to the top half**. The test measures a symmetric-difference volume of about 1e-9 of the half volume. Both masters are still exported, because their keys differ.
+- **Torus:** the same smooth manifold3d mesh as the torus STL (royal cubit, 12 + 12 lattice, 3.175 × 3.175 mm U-grooves). On the masters the grooves measure 3.175 mm wide and 3.175 mm deep at 6 places, 3 on each half.
+
+### Sizes (defaults) and the bed
+
+The bed assumed is the **Creality Ender-2's 150 × 150 × 200 mm print volume**: the official spec and the stock Marlin `X_BED_SIZE`/`Y_BED_SIZE`. The aluminium plate itself is about 165 mm, but the firmware limits printing to 150 mm.
+
+| Part (as printed) | X × Y × Z (mm) | Fits 150 × 150? |
+|---|---|---|
+| `mold_master_A_mm.stl` | 139.0 × 139.0 × 24.8 (4 mm plate + 20.83 mm half torus) | yes |
+| `mold_master_B_mm.stl` | 139.0 × 139.0 × 30.8 (10 mm plate + 20.83 mm half torus) | yes |
+| `pour_frame_mm.stl` | 145.6 × 145.6 × 34.8 (3 mm wall, 0.3 mm clearance) | yes, 2.2 mm to spare per side |
+
+Defaults are: plate margin 7 mm from the torus edge to the plate edge, plate 4 mm, keys of radius 8 mm with a 3 mm edge gap (centres at ±58.5 mm, 12.2 mm clear of the torus), clearance 0.3 mm, wall 3 mm, and silicone cover 10 mm above the torus. The frame's inner size is plate + 2 × clearance; its height is plate + half torus + cover. Master B's plate is key radius + 2 mm = 10 mm, so the 8 mm sockets keep a floor; everything above the floor is the same as on A.
+
+**Why a one-piece frame around the plate:** the 125 mm torus plus a 7 mm silicone wall plus 0.3 mm clearance and a 3 mm wall comes to 145.6 mm, so a one-piece frame fits. Panels or a frame sitting on the plate aren't needed at this size. The largest margin that still fits is about 9 mm (149.6 mm frame). Bigger margins need a printer with a larger bed; the app flags parts that don't fit. A **"ledge" option** gives the same footprint: the plate gets a raised pour floor and a 3.3 mm perimeter ledge, and the frame drops over the floor and rests on the ledge. It self-locates, and silicone has to climb a 2 mm step before it can leak. With frame and plate both 145.6 mm, there is less room on the bed. Silicone per half is about 442 cm³ (about 0.49 kg at 1.1 g/cm³).
+
+### Print
+
+1. Print every part **as exported** (flat side down, in mm, 100 % scale). Turn off the brim and skirt, or keep the skirt within 2 mm: the frame leaves only 2.2 mm per side on a 150 mm bed. Masters A and B need no supports. The half torus faces upwards everywhere, and the groove ceilings near the plate are short 3.2 mm bridges.
+2. Use 0.12–0.16 mm layers for the masters (smoother groove walls) and 3+ perimeters. The frame is fine at 0.2–0.28 mm.
+3. Lightly sand the master: 400 → 800 grit wet, keeping the groove edges crisp. For a glossy silicone surface, seal it with a thin brushed coat (XTC-3D, or primer plus clear coat). Check that the sealer is compatible with platinum silicone, or use tin-cure silicone.
+
+### Pour
+
+1. Set the master on a flat sheet (glass or melamine), drop the frame over it and seal the frame's outside bottom joint with hot glue or sulphur-free clay. Silicone will find a 0.3 mm gap.
+2. Spray or brush mold release (e.g. Ease Release 200) on the master and the frame, and let it flash off.
+3. Mix about 450 cm³ of silicone (Shore 20–30A works well for this lattice) and degas it if you can. Pour in a thin stream into one **corner**, not onto the torus, and let it rise over the torus and keys. Fill to the top of the frame: that is 30.8 mm of silicone above the floor (20.83 mm torus + 10 mm cover).
+4. Cure, de-mold, and repeat on master B. Put a dab of release on silicone A's dimples before casting into the pair.
+5. **Pour and vent channels** go into the cured silicone. They aren't modelled, which keeps the masters simple. Cut a 6–8 mm funnel from the outside face to the rim of the torus cavity in one half, plus 1–2 thin vents at the high points (the top of the tube) in the other half. Clamp the two halves between boards; don't use rubber bands that squeeze the cavity.
+
+STL: watertight (also after slicer vertex merge), built in about 4 s. STEP: **Prepare mold STEPs** builds exact B-rep `mold_master_A_mm.step`, `mold_master_B_mm.step` and `pour_frame_mm.step` in about 4.5 min. Almost all of that is the 24 sequential groove cuts; splitting and fusing take about 17 s. Each file re-imports as 1 valid solid whose volume is within 0.1 % of the STL. OpenCascade silently dropped the plate when fusing it with the *bottom* half of the finished torus. Because the halves are identical, master B's STEP is built from the top half instead. If you change the pattern so the halves differ (golden presets, an odd start rotation), the B STEP is checked against the mesh volume and the app says to use the STL if the boolean fails.
+
 ## Run
 
 macOS / Linux:
@@ -114,11 +153,12 @@ streamlit run app.py
 ## Tests / screenshots
 
 ```bash
-pytest -q          # geometry math, boolean mesh width/depth/watertight, B-rep cutter smoke tests
+pytest -q          # geometry math, boolean mesh width/depth/watertight, B-rep cutter smoke tests, mold masters
 REFERENCE_PHOTO=/path/to/photo.png python capture.py
 # writes media/preview.png, front_view.png, closeup_rim_vs_hole.png, zoom_groove_walls.png,
 #        mesh_wireframe_rim.png (actual STL triangles), preview_mirror.png, screenshot.png,
-#        snippet.png, and compare_photo.png (only when REFERENCE_PHOTO is set)
+#        snippet.png, mold_preview.png, mold_in_frame.png, mold_master_B.png, mold_section.png,
+#        and compare_photo.png (only when REFERENCE_PHOTO is set)
 ```
 
 ## Make your own shapes

@@ -51,6 +51,8 @@ st.caption(
 MM = MM_PER_IN
 
 with st.sidebar:
+    mode = st.radio("Mode", ["Torus", "Mold master"], horizontal=True,
+                    help="Mold master: silicone mold positives (two halves) + pour frame for this torus.")
     st.header("Preset")
     pattern = st.radio("Groove pattern", list(PATTERNS), format_func=PATTERN_LABELS.get)
     st.header("Torus size")
@@ -113,6 +115,12 @@ except ValueError as exc:
 
 with st.sidebar.expander("Formula"):
     st.code(describe_formula(params))
+
+if mode == "Mold master":
+    import mold_page
+
+    mold_page.render(params, mold_page.sidebar())
+    st.stop()
 
 
 @st.cache_data(show_spinner="Meshing grooved torus…", max_entries=8)
