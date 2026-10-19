@@ -39,7 +39,7 @@ def test_defaults_match_solidworks_sketch():
     assert p.n_grooves == 12
     assert p.pattern == "photo"
     assert p.groove_depth == pytest.approx(0.125)
-    assert p.groove_width == pytest.approx(0.25)
+    assert p.groove_width == pytest.approx(0.125)
 
 
 def test_semicircle_profile():
@@ -64,7 +64,7 @@ def test_twelve_poles_thirty_degrees():
 
 def test_top_half_is_golden_spiral_from_above():
     p = TorusParams(pattern="rodin")
-    pts = groove_path(p, 0, 2001)
+    pts = groove_path(p, 0, 2001, radius=p.tube_radius)
     top = pts[pts[:, 2] >= 0]
     q = np.hypot(top[:, 0], top[:, 1])
     ang = np.unwrap(np.arctan2(top[:, 1], top[:, 0]))
@@ -131,7 +131,9 @@ def test_mesh_closed_and_lighter_than_plain_torus():
 
 def test_invalid_params():
     with pytest.raises(ValueError):
-        validate(TorusParams(groove_width=0.2, groove_depth=0.1875))  # undercut
+        validate(TorusParams(groove_width=0.0))
+    with pytest.raises(ValueError):
+        validate(TorusParams(groove_depth=0.8))  # deeper than the tube radius
     with pytest.raises(ValueError):
         validate(TorusParams(tube_radius=2.0, major_radius=1.0))
     with pytest.raises(ValueError):
@@ -169,12 +171,12 @@ def test_photo_grooves_chain_into_closed_loops():
 
 
 def test_photo_wall_numeric_matches_closed_form():
-    for d in (0.125, 0.1875):
-        p = TorusParams(groove_depth=d, groove_width=2 * d)
+    for w in (0.125, 0.25, 0.375):
+        p = TorusParams(groove_depth=0.125, groove_width=w)
         wall, theta = min_wall(p)
         assert wall == pytest.approx(photo_wall_analytic(p), abs=2e-3)
         assert theta == pytest.approx(180.0, abs=10.0)  # thinnest at the hole
-    assert min_wall(TorusParams())[0] == pytest.approx(0.0296, abs=2e-3)  # 1/8" default
+    assert min_wall(TorusParams())[0] == pytest.approx(0.155, abs=2e-3)  # 1/8" × 1/8" default
     assert min_wall(TorusParams(groove_depth=0.1875, groove_width=0.375))[0] < 0  # merges
 
 
@@ -187,3 +189,60 @@ def test_export_mesh_watertight():
     m = trimesh.Trimesh(vertices=v, faces=f, process=False)
     assert m.is_watertight and m.is_winding_consistent
     assert len(f) == 2 * EXPORT_GRID[0] * EXPORT_GRID[1]
+
+
+# ---- constant true-3D width + U profile ------------------------------------
+
+def test_u_profile_shape():
+    from geometry import profile_depth, wall_height
+
+    p = TorusParams()  # 1/8 wide, 1/8 deep
+    assert cutter_radius(p) == pytest.approx(1 / 16)
+    assert wall_height(p) == pytest.approx(1 / 16)
+    assert profile_depth(p, 0.0) == pytest.approx(0.125)
+    # walls are vertical: just inside the edge the cut is still ≥ the wall height
+    assert profile_depth(p, 0.0624) >= 1 / 16 - 1e-9
+    assert profile_depth(p, 0.0626) == 0.0
+    semi = TorusParams(groove_width=0.25, groove_depth=0.125)
+    assert profile_depth(semi, 0.1249) == pytest.approx(0.0, abs=5e-3)
+
+
+@pytest.mark.parametrize(
+    "theta_deg,label",
+    [(9, "outer equator"), (99, "top"), (189, "inner equator"), (279, "bottom")],
+)
+def test_groove_width_constant_in_3d(theta_deg, label):
+    """Measure the cut width perpendicular to groove 0 (true 3D chord).
+
+    Angles are 9° past the 18°-spaced crossings with the other family so the
+    neighbouring groove doesn't widen the measurement.
+    """
+    from torus_mesh import GrooveField, measure_width
+
+    p = TorusParams()
+    field = GrooveField(p)
+    g0 = field.paths[0]
+    j = int(round(theta_deg / 360 * (len(g0) - 1)))
+    w = measure_width(p, g0, j, field)
+    assert w == pytest.approx(p.groove_width, rel=0.05), label
+
+
+def test_width_identical_rim_vs_hole_isolated_groove():
+    from torus_mesh import GrooveField, measure_width
+
+    p = TorusParams()
+    g0 = GrooveField(p).paths[0]
+    single = GrooveField(p, paths=[g0])
+    n = len(g0)
+    widths = [measure_width(p, g0, max(1, min(n - 2, int(f * (n - 1)))), single)
+              for f in (0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875)]
+    assert max(widths) / min(widths) < 1.05
+    assert np.allclose(widths, 0.125, rtol=0.02)
+
+
+def test_mesh_depth_is_true_depth():
+    from torus_mesh import grooved_torus_mesh
+
+    v, f, dep = grooved_torus_mesh(TorusParams(), 120, 960, return_depth=True)
+    assert dep.max() == pytest.approx(0.125, abs=3e-3)
+    assert dep.min() == 0.0

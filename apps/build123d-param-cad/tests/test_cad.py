@@ -4,8 +4,8 @@ import math
 
 import pytest
 
-from geometry import TorusParams, cutter_radius
-from rodin_torus import build_cad_bodies, step_bytes
+from geometry import TorusParams, cutter_radius, path_radius
+from rodin_torus import CLEARANCE, build_cad_bodies, step_bytes
 
 
 def test_cutters_valid_and_sized():
@@ -15,7 +15,11 @@ def test_cutters_valid_and_sized():
     assert len(cutters) == 24 and len(axes) == 24  # photo lattice: 12 + 12
     for c, a in zip(cutters, axes):
         assert c.is_valid
-        assert c.volume == pytest.approx(math.pi * cutter_radius(p) ** 2 * a.length, rel=0.04)
+        # U profile: half disc + walls up to CLEARANCE above the surface
+        rho = cutter_radius(p)
+        ext = p.tube_radius + CLEARANCE - path_radius(p)
+        area = math.pi * rho**2 / 2 + 2 * rho * ext
+        assert c.volume == pytest.approx(area * a.length, rel=0.04)
 
 
 def test_step_export():

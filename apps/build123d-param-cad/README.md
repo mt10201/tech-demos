@@ -14,8 +14,9 @@ This is **not** a 3D-printer settings app. It designs the shape; slice the STL e
 | Tube radius r | **0.695**: outer Ø 4.17, hole Ø 1.39 (hole/OD = 0.333) |
 | Pattern | **Photo replica**: 12 grooves per direction, both directions |
 | Sweep rim → hole | **150°** (measured from the photo) |
-| Groove depth | **0.125** (1/8"); slider 1/8"–1/4" |
-| Groove width | **0.25** = 2 × depth → true semicircle; wider = shallower circular arc |
+| Groove width | **0.125** (1/8"), measured in true 3D; slider 1/16"–1/2" |
+| Groove depth | **0.125** (1/8"); slider 1/32"–1/4" |
+| Profile | **U-groove**: semicircular bottom of radius 1/16" plus straight walls 1/16" tall. depth = width/2 is a pure semicircle; depth < width/2 is a shallow arc |
 
 ## Photo replica: what was measured
 
@@ -34,21 +35,24 @@ Torus coordinates: `point(θ, φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin
 
 **Photo replica (default):** `φ = φ₀ ± (sweep/180°)·θ`, with θ going 0 → 360°, `φ₀ = rotation + i·30°`, and 12 grooves for each sign. Each groove is a constant-pitch helix that wraps the full torus. With sweep = 150°, a wrap advances 300° (10 poles), so the grooves join end-to-start into seamless closed loops. Any multiple of 15° does the same.
 
-**Wall thickness:** neighbours in the same direction come closest at the hole (θ = 180°). Their perpendicular spacing there is `(2π q/N)·sin α`, with `q = R − ρ` and `tan α = ρ/(q·k)`, `k = sweep/180°`. Subtracting the groove width gives the wall. The app computes this numerically for every pattern (closest approach of the centre-lines) and warns when the wall drops below 0.04" or goes negative (grooves merge):
+**Wall thickness:** grooves of *opposite* direction are meant to cross. In the photo preset they cross every 18° of θ along each groove, and on the inner equator both families cross at the same 12 points, 30° (0.364") apart. Neighbours in the *same* direction come closest at the hole (θ ≈ 187°). Their perpendicular centre-line spacing there is `(2π q/N)·sin α`, with `q = R − r`, `tan α = r/(q·k)` and `k = sweep/180°`, which comes to **0.280"**. Subtracting the groove width gives the wall. The app computes this numerically for every pattern (3D closest approach of the surface centre-lines) and warns when the wall drops below 0.04" or goes negative (grooves merge):
 
-| Depth (semicircle) | Width | Min wall at the hole |
-|---|---|---|
-| 1/8" (default) | 0.25" | **+0.030"** |
-| 5/32" | 0.3125" | −0.033" (merge) |
-| 3/16" | 0.375" | −0.095" (merge) |
-| 1/4" | 0.5" | −0.220" (merge) |
+| Width | Min wall at the hole |
+|---|---|
+| 1/8" (default) | **+0.155"** |
+| 3/16" | +0.092" |
+| 1/4" | +0.030" |
+| 5/16" | −0.033" (merge) |
+| 3/8" | −0.095" (merge) |
+
+The wall depends only on width, not depth. A U-groove keeps the same width at any depth.
 
 **Golden-spiral presets:** these are the earlier variants, described below.
 
-1. **Profile.** Each groove is a circle of radius `cutter_r = (w²/4 + d²)/(2d)` (= depth for a semicircle) whose centre-line runs at tube radius `ρ_axis = r − d + cutter_r`, so the groove bottom is exactly `d` below the surface.
+1. **Profile.** This is the same true-3D profile as the photo preset (see *Outputs*).
 2. **Path: one helical wrap per groove.** θ goes 0 → 360° once around the tube while φ advances around the main axis.
 3. **Top half = golden spiral.** On θ 0 → 180° (outer equator → over the top → inner equator) the azimuth is
-   `φ = φ₀ + (π/2)·log_φ(q_max / q)`, `q = R + ρ_axis cos θ`,
+   `φ = φ₀ + (π/2)·log_φ(q_max / q)`, `q = R + r cos θ` (surface centre-line),
    so the projected radius shrinks by φ ≈ 1.618 for every 90° of azimuth. From 2.085" down to 0.695" (ratio 3) that's a **205.5°** golden-spiral sweep.
 4. **Bottom half (closure option).**
    - **Rodin (default):** the bottom half sweeps 510° − 205.5° so each wrap advances 360° + 150° (the classic Rodin 5-of-12 pole skip). Groove *i* ends exactly where groove *i+5* starts, so the 12 grooves chain into **one continuous closed winding**.
@@ -59,11 +63,17 @@ For these presets, the numeric minimum-wall check also flags merging at 3/16" de
 
 ## Outputs
 
-- **3D preview, front view and STL:** an analytic, watertight mesh. Each vertex on the tube-radial ray is pushed in to the exact cutter wall (`|c + λn − A|² = cutter_r²` against the nearest groove-axis samples). It's checked against Pappus' theorem for a ring groove (within about 1%).
-  - The live preview uses a 160×640 grid (205k triangles).
-  - **Prepare high-res STL** uses a 320×1280 grid: 819,200 triangles, about 41 MB binary STL, watertight and winding-consistent (verified with trimesh).
+- **3D preview, front view and STL:** an analytic, watertight mesh with **constant true-3D groove width** (`torus_mesh.py`):
+  1. Each groove centre-line is traced on the torus surface and sampled as a 3D polyline, spaced about width/4.
+  2. The torus is meshed on a periodic (θ, φ) grid. For every surface vertex, a KD-tree finds nearby polyline vertices, and a nearest-segment search over their adjacent segments gives the exact 3D distance `t` to the closest centre-line.
+  3. The vertex is pushed in along its surface normal by `depth(t) = (d − ρ) + √(ρ² − t²)` for `|t| < w/2` (otherwise 0). Where grooves cross, the deepest cut wins.
+
+  Width therefore no longer scales with the local circumference `R + r cos θ`. The measured width perpendicular to the path, 9° away from a crossing, is 0.1249" at the outer rim, 0.1249" on top, 0.1250" at the hole and 0.1249" on the bottom (`tests/test_geometry.py::test_groove_width_constant_in_3d`).
+  - The live preview uses a 180×720 grid (259,200 triangles, about 7.6 samples per groove width at the rim).
+  - **Prepare high-res STL** uses a 400×1600 grid: 1,280,000 triangles, a 64.0 MB binary STL, watertight and winding-consistent (trimesh). That's about 15 samples per 1/8" groove width around the 13.1" rim and about 11 across the tube.
+- **Close-up section:** 0.6" patches at the outer rim and the inner hole at the same scale, plus overlaid cross-sections at rim, top, hole and bottom. All four profiles are identical.
 - **Front view:** an orthographic view looking along the axis, like the photo. Tiles are rainbow-coloured by azimuth and grooves are copper.
-- **STEP**: exact build123d B-rep **torus + 12 swept groove cutter bodies + 12 centre-line splines**. OpenCascade's own `torus − cutters` boolean is unreliable for these long helical pipes (it returns invalid solids), so do the subtraction in SOLIDWORKS: open the STEP → *Insert ▸ Features ▸ Combine ▸ Subtract* (main body = torus, subtract = the 12 grooves).
+- **STEP**: exact build123d B-rep **torus + swept groove cutter bodies + centre-line splines** (24 for the photo preset). The U profile is swept with an auxiliary spine, so its walls stay normal to the torus along the whole wrap. OpenCascade's own `torus − cutters` boolean is unreliable for these long helical pipes (it returns invalid solids), so do the subtraction in SOLIDWORKS: open the STEP → *Insert ▸ Features ▸ Combine ▸ Subtract* (main body = torus, subtract = all groove bodies).
 - **Generated build123d snippet** for the current slider values (it produces the same STEP bodies).
 
 ## Run

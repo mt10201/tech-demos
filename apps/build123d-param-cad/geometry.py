@@ -57,8 +57,8 @@ class TorusParams:
     major_radius: float = 1.39  # axis → tube centre
     tube_radius: float = 0.695  # minor radius
     n_grooves: int = 12  # per direction
-    groove_depth: float = 0.125  # 1/8" (photo-like walls; slider to 1/4")
-    groove_width: float = 0.25  # = 2 × depth → true semicircle
+    groove_depth: float = 0.125  # 1/8" total depth
+    groove_width: float = 0.125  # 1/8" wide → U-groove (r=1/16 bottom + 1/16 walls)
     pattern: str = "photo"  # "photo" | "rodin" | "mirror"
     sweep_deg: float = PHOTO_SWEEP_DEG  # photo pattern: azimuth travelled rim → hole
     handedness: int = 1  # +1 / -1 mirrors the whole pattern
@@ -74,10 +74,8 @@ def validate(p: TorusParams) -> None:
         raise ValueError("n_grooves must be >= 1")
     if not (0.0 < p.groove_depth < p.tube_radius):
         raise ValueError("groove_depth must be in (0, tube_radius)")
-    if p.groove_width < 2.0 * p.groove_depth - 1e-9:
-        raise ValueError(
-            "groove_width must be >= 2 × depth (narrower would undercut the semicircle)"
-        )
+    if not (0.0 < p.groove_width < 2.0 * p.tube_radius):
+        raise ValueError("groove_width must be in (0, 2·tube_radius)")
     if p.pattern not in PATTERNS:
         raise ValueError(f"pattern must be one of {PATTERNS}")
     if p.handedness not in (1, -1):
@@ -87,24 +85,42 @@ def validate(p: TorusParams) -> None:
 
 
 def cutter_radius(p: TorusParams) -> float:
-    """Radius of the circular groove profile.
+    """Radius of the circular part of the groove profile (true 3D inches).
 
-    width = 2·depth gives a true semicircle (radius = depth).  A wider groove of
-    the same depth is a shallower circular arc with radius (w²/4 + d²) / (2d).
+    * depth ≥ width/2 → **U-groove**: semicircular bottom of radius width/2
+      plus straight walls (depth − width/2) tall.  width = 2·depth is the pure
+      semicircle; the default 1/8" × 1/8" is a U with 1/16" walls.
+    * depth < width/2 → shallow circular arc of radius (w²/4 + d²)/(2d).
     """
     d, w = p.groove_depth, p.groove_width
+    if d >= w / 2.0:
+        return w / 2.0
     return (w * w / 4.0 + d * d) / (2.0 * d)
 
 
+def wall_height(p: TorusParams) -> float:
+    """Straight wall height of the U profile (0 for semicircle / shallow arc)."""
+    return max(0.0, p.groove_depth - p.groove_width / 2.0)
+
+
+def profile_depth(p: TorusParams, t: np.ndarray) -> np.ndarray:
+    """Groove depth below the surface at true lateral distance ``t`` from the
+    groove centre-line (inches).  0 outside the groove (|t| ≥ width/2)."""
+    t = np.abs(np.asarray(t, dtype=float))
+    rho = cutter_radius(p)
+    inside = t < p.groove_width / 2.0
+    dep = (p.groove_depth - rho) + np.sqrt(np.maximum(rho * rho - t * t, 0.0))
+    return np.where(inside, np.clip(dep, 0.0, p.groove_depth), 0.0)
+
+
 def path_radius(p: TorusParams) -> float:
-    """Tube-radius at which the cutter axis runs (r − depth + cutter radius)."""
+    """Tube-radius of the profile's circle centre (r − depth + cutter radius)."""
     return p.tube_radius - p.groove_depth + cutter_radius(p)
 
 
 def projected_limits(p: TorusParams) -> Tuple[float, float]:
-    """(q_min, q_max): projected radius of the cutter axis at inner / outer equator."""
-    rp = path_radius(p)
-    return p.major_radius - rp, p.major_radius + rp
+    """(q_min, q_max): projected radius of the surface centre-line at hole / rim."""
+    return p.major_radius - p.tube_radius, p.major_radius + p.tube_radius
 
 
 def spiral_sweep(q_min: float, q_max: float) -> float:
@@ -156,29 +172,40 @@ def azimuth_offset(p: TorusParams, theta: np.ndarray) -> np.ndarray:
     if p.pattern == "photo":
         return theta * (top / math.pi)
     q_min, q_max = projected_limits(p)
-    q = p.major_radius + path_radius(p) * np.cos(theta)
+    q = p.major_radius + p.tube_radius * np.cos(theta)
     s = np.log(q_max / q) / math.log(q_max / q_min)  # 0 at outer, 1 at inner
     s = np.clip(s, 0.0, 1.0)
     return np.where(theta <= math.pi, s * top, top + (1.0 - s) * bottom)
 
 
 def groove_path(
-    p: TorusParams, index: int, n: int = 241, direction: int | None = None
+    p: TorusParams,
+    index: int,
+    n: int = 241,
+    direction: int | None = None,
+    radius: float | None = None,
 ) -> np.ndarray:
-    """(n, 3) points of the cutter axis for groove ``index`` (one full wrap)."""
+    """(n, 3) points of groove ``index`` (one full wrap).
+
+    By default the points are the profile-circle centre (tube radius
+    ``path_radius``); pass ``radius=p.tube_radius`` for the groove's centre-line
+    traced on the torus surface.
+    """
     theta = np.linspace(0.0, 2.0 * math.pi, n)
     phi0 = math.radians(start_angles_deg(p)[index])
     hand = p.handedness if direction is None else direction
     phi = phi0 + hand * azimuth_offset(p, theta)
-    rp = path_radius(p)
+    rp = path_radius(p) if radius is None else radius
     q = p.major_radius + rp * np.cos(theta)
     return np.column_stack([q * np.cos(phi), q * np.sin(phi), rp * np.sin(theta)])
 
 
-def all_paths(p: TorusParams, n: int = 241) -> List[np.ndarray]:
-    """Every groove axis: n_grooves per family (family order = ``families``)."""
+def all_paths(
+    p: TorusParams, n: int = 241, radius: float | None = None
+) -> List[np.ndarray]:
+    """Every groove: n_grooves per family (family order = ``families``)."""
     return [
-        groove_path(p, i, n, direction=fam)
+        groove_path(p, i, n, direction=fam, radius=radius)
         for fam in families(p)
         for i in range(p.n_grooves)
     ]
@@ -197,7 +224,7 @@ def min_centre_spacing(p: TorusParams, n: int = 721) -> Tuple[float, float]:
 
     k = max(1, int(0.04 * n))
     theta = np.linspace(0.0, 360.0, n)[k:-k]
-    paths = [groove_path(p, i, n)[k:-k] for i in range(p.n_grooves)]
+    paths = [groove_path(p, i, n, radius=p.tube_radius)[k:-k] for i in range(p.n_grooves)]
     if len(paths) < 2:
         return float("inf"), 0.0
     others = np.vstack(paths[1:])
@@ -209,13 +236,11 @@ def min_centre_spacing(p: TorusParams, n: int = 721) -> Tuple[float, float]:
 def min_wall(p: TorusParams) -> Tuple[float, float]:
     """(wall, θ_deg): thinnest raised wall left between neighbouring grooves.
 
-    wall = centre-line spacing − groove width (measured at the surface).
+    wall = surface centre-line spacing − groove width (true 3D inches).
     Negative means the neighbouring grooves merge there.
     """
     s, th = min_centre_spacing(p)
-    # centre-lines run at tube radius ρ_axis; scale the spacing to the surface
-    s_surface = s * p.tube_radius / path_radius(p)
-    return s_surface - p.groove_width, th
+    return s - p.groove_width, th
 
 
 def photo_wall_analytic(p: TorusParams) -> float:
@@ -225,11 +250,11 @@ def photo_wall_analytic(p: TorusParams) -> float:
     q = R − ρ; the helix crosses it at angle α with tan α = ρ / (q·k),
     k = sweep/180°, so the perpendicular spacing is (2πq/N)·sin α.
     """
-    rp = path_radius(p)
+    rp = p.tube_radius  # centre-lines traced on the surface
     q = p.major_radius - rp
     k = p.sweep_deg / 180.0
     spacing = (2 * math.pi * q / p.n_grooves) * rp / math.hypot(rp, q * k)
-    return spacing * p.tube_radius / rp - p.groove_width
+    return spacing - p.groove_width
 
 
 def describe_formula(p: TorusParams | None = None) -> str:
@@ -237,9 +262,10 @@ def describe_formula(p: TorusParams | None = None) -> str:
     return (
         "Units: inches.  φ = (1+√5)/2 ≈ 1.6180339887\n"
         "point(θ,φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)\n"
-        "ρ_axis = r − depth + cutter_r      cutter_r = (w²/4 + d²)/(2d)\n"
+        "Profile (true 3D): depth(t) = (d − ρ) + √(ρ² − t²) for |t| < w/2, t = 3D distance\n"
+        "  to the surface centre-line;  ρ = w/2 (U-groove / semicircle) or (w²/4+d²)/(2d)\n"
         f"Photo replica: φ = φ₀ ± ({sweep:.0f}°/180°)·θ, θ 0→360°, 12 grooves per sign\n"
         "  φ₀ = rotation + i·30°  → crisscross lattice, rhombus tiles\n"
-        "Golden: front half φ = φ₀ + (π/2)·log_φ(q_max/q), q = R + ρ_axis cos θ\n"
+        "Golden: front half φ = φ₀ + (π/2)·log_φ(q_max/q), q = R + r cos θ\n"
         "  back half rodin → 510° per wrap (150° skip), mirror → same spiral"
     )

@@ -11,6 +11,7 @@ import streamlit as st
 
 from code_snippet import generate_snippet
 from geometry import (
+    wall_height,
     PATTERN_LABELS,
     PATTERNS,
     PHI,
@@ -27,14 +28,24 @@ from geometry import (
     sweeps,
     wrap_advance_deg,
 )
-from torus_mesh import EXPORT_GRID, PREVIEW_GRID, grooved_torus_mesh, mesh_volume, stl_bytes
+from torus_mesh import (
+    EXPORT_GRID,
+    PREVIEW_GRID,
+    GrooveField,
+    cross_profile,
+    grooved_torus_mesh,
+    measure_width,
+    mesh_volume,
+    patch_mesh,
+    stl_bytes,
+)
 
 st.set_page_config(page_title="Rodin torus · build123d", page_icon="◎", layout="wide")
 
 st.title("Rodin coil torus — groove lattice")
 st.caption(
     "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
-    "12 + 12 semicircle grooves spiralling in both directions, leaving raised rhombus tiles "
+    "12 + 12 constant-width U-grooves (1/8\" wide × 1/8\" deep) spiralling in both directions, leaving raised rhombus tiles "
     "like the rainbow Rodin coil frame. Units: **inches** (SOLIDWORKS sketch: R = 1.39, r = 0.695)."
 )
 
@@ -45,10 +56,11 @@ with st.sidebar:
     R = st.number_input("Major radius R (axis → tube centre)", 0.5, 6.0, 1.39, 0.01, format="%.3f")
     r = st.number_input("Tube radius r", 0.1, 3.0, 0.695, 0.005, format="%.3f")
     st.header("Grooves")
-    depth = st.slider("Groove depth (in)", 0.125, 0.25, 0.125, 1 / 64, format="%.4f")
-    width = st.slider(
-        "Groove width (in) — 2×depth = true semicircle",
-        float(2 * depth), 0.75, float(2 * depth), 1 / 64, format="%.4f",
+    width = st.slider("Groove width (in, true 3D)", 0.0625, 0.5, 0.125, 1 / 64, format="%.4f")
+    depth = st.slider(
+        "Groove depth (in)", 0.03125, 0.25, 0.125, 1 / 64, format="%.4f",
+        help="depth > width/2 → U-groove (semicircle bottom + straight walls); "
+             "depth = width/2 → semicircle; depth < width/2 → shallow arc.",
     )
     sweep = PHOTO_SWEEP_DEG
     if pattern == "photo":
@@ -168,6 +180,14 @@ with col_front:
     )
     st.plotly_chart(front, use_container_width=True)
 
+h_wall = wall_height(params)
+prof = ("U-groove" if h_wall > 1e-9 else
+        "semicircle" if abs(depth - width / 2) < 1e-9 else "shallow arc")
+st.caption(
+    f"Profile: **{prof}**, {width:.4f}\" wide × {depth:.4f}\" deep (bottom radius "
+    f"{cutter_radius(params):.4f}\"{f', walls {h_wall:.4f}' + chr(34) if h_wall > 1e-9 else ''}). "
+    "Width is measured in true 3D, so it is identical on the rim, top, hole and bottom."
+)
 m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("Solid volume", f"{mesh_volume(verts, faces):.3f} in³")
 m2.metric("Grooves", f"{len(paths)}  ({' + '.join(str(params.n_grooves) for _ in families(params))})")
@@ -187,6 +207,66 @@ elif wall < 0.04:
         f"(near θ ≈ {wall_theta:.0f}°, 180° = hole). It will print but be fragile; "
         "check your printer's minimum feature size."
     )
+
+st.subheader("Close-up: rim vs hole at the same scale")
+
+
+@st.cache_data(show_spinner="Rendering close-ups…", max_entries=4)
+def _closeups(p: TorusParams):
+    field = GrooveField(p)
+    g0 = field.paths[0]
+    n = len(g0)
+    out = []
+    # 9° past a crossing with the other family (crossings every 180/(2k)° of θ)
+    for label, th in (("Outer rim", 9.0), ("Top", 99.0), ("Inner hole", 189.0), ("Bottom", 279.0)):
+        j = int(round(th / 360 * (n - 1)))
+        S = g0[j]
+        theta_c = math.atan2(S[2], math.hypot(S[0], S[1]) - p.major_radius)
+        phi_c = math.atan2(S[1], S[0])
+        w = measure_width(p, g0, j, field)
+        s, dep = cross_profile(p, g0, j, field)
+        out.append((label, theta_c, phi_c, w, s, dep))
+    patches = {lab: patch_mesh(p, tc, pc, half=0.3, n=170, field=field)
+               for lab, tc, pc, *_ in (out[0], out[2])}
+    return out, patches
+
+
+cl, patches = _closeups(params)
+cz = st.columns(3)
+for col, lab in zip(cz[:2], ("Outer rim", "Inner hole")):
+    v, f, dp, ctrp, nc = patches[lab]
+    t = np.clip(dp / (0.35 * params.groove_depth), 0, 1)
+    cols = (255 * ((1 - t)[:, None] * np.array([0.55, 0.62, 0.95]) + t[:, None] * np.array([0.80, 0.47, 0.22]))).astype(int)
+    vv = v - ctrp
+    figp = go.Figure(go.Mesh3d(
+        x=vv[:, 0], y=vv[:, 1], z=vv[:, 2], i=f[:, 0], j=f[:, 1], k=f[:, 2],
+        vertexcolor=[f"rgb({a},{b},{c})" for a, b, c in cols], flatshading=False,
+        lighting=dict(ambient=0.5, diffuse=0.8, specular=0.3), hoverinfo="skip",
+    ))
+    rng = [-0.32, 0.32]
+    noax = dict(visible=False, range=rng)
+    eye = nc * 1.1 + np.array([0, 0, 0.35])
+    figp.update_layout(
+        scene=dict(xaxis=noax, yaxis=noax, zaxis=noax, aspectmode="cube",
+                   camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=0, y=0, z=1),
+                               projection=dict(type="orthographic")),
+                   bgcolor="#f4f4f4"),
+        margin=dict(l=0, r=0, t=30, b=0), height=360, paper_bgcolor="#f4f4f4",
+        title=dict(text=f"{lab} (0.6\" patch)", x=0.5, font=dict(color="#222", size=13)),
+    )
+    col.plotly_chart(figp, use_container_width=True)
+with cz[2]:
+    pf = go.Figure()
+    for (lab, _, _, w, s_, dep_), colr in zip(cl, ["#ef4444", "#22c55e", "#3b82f6", "#a855f7"]):
+        pf.add_trace(go.Scatter(x=s_, y=-dep_, mode="lines", line=dict(color=colr, width=2),
+                                name=f"{lab}: {w:.4f}\" wide"))
+    pf.update_layout(
+        height=360, margin=dict(l=10, r=10, t=30, b=10),
+        title=dict(text="Cross-section ⟂ path (true 3D)", x=0.5, font=dict(size=13)),
+        xaxis_title="lateral offset (in)", yaxis_title="depth (in)",
+        yaxis=dict(scaleanchor="x"), legend=dict(orientation="h", y=-0.3),
+    )
+    st.plotly_chart(pf, use_container_width=True)
 
 st.subheader("Downloads")
 d1, d2 = st.columns(2)

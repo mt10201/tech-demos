@@ -121,6 +121,14 @@ def main():
             print(f"wrote {fv}")
             if PHOTO and Path(PHOTO).exists():
                 compose_comparison(Path(PHOTO), fv, MEDIA / "compare_photo.png")
+            # Close-up: rim vs hole patches + cross-section profiles
+            hdr = page.get_by_text("Close-up: rim vs hole at the same scale")
+            hdr.scroll_into_view_if_needed()
+            page.evaluate("window.scrollBy(0, -20)")
+            page.wait_for_timeout(2500)
+            cu = MEDIA / "closeup_rim_vs_hole.png"
+            page.screenshot(path=str(cu), full_page=False)
+            print(f"wrote {cu}")
             page.evaluate("window.scrollTo(0, 0)")
 
             # Mirror-closure variant (both spiral families, like the SW top view)

@@ -23,6 +23,10 @@ This replaces the earlier flat "Rodin coil card" assumption, which the owner cor
 - Kept the owner's R and r. Default depth 1/8" so walls stay positive (+0.030" at the hole).
 - Preview at 160×640, STL export at 320×1280. Front view with rainbow tiles and copper grooves, plus a photo comparison in capture.py.
 
+## Revision 3: constant true-3D width
+- U-groove profile, 1/8" × 1/8" by default. Depth comes from the 3D distance to the surface centre-line (KD-tree plus nearest-segment search). Widths are verified equal at rim, top, hole and bottom.
+- Preview at 180×720, STL at 400×1600 (1.28 M triangles). Min wall at the hole: +0.155".
+
 ## Decisions
 - Top half is exactly golden (radius ÷ φ per 90°). The bottom half either closes the Rodin 150° skip (default) or mirrors the golden spiral.
 - Grooves start on the outer equator, where the spacing is roomy (1.09"). They cross the inner equator meridionally, 0.364" apart.
