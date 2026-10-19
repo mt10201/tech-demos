@@ -44,7 +44,7 @@ def compose_comparison(photo: Path, render: Path, out: Path) -> None:
     canvas.paste(b, (a.width + 30, 40))
     d = ImageDraw.Draw(canvas)
     d.text((10, 12), "Reference photo (real Rodin coil frame)", fill="black")
-    d.text((a.width + 40, 12), "App front view: Photo replica preset (R 1.39, r 0.695 in)", fill="black")
+    d.text((a.width + 40, 12), "App front view: Photo replica preset (royal-cubit size, 125 mm OD)", fill="black")
     canvas.save(out)
     print(f"wrote {out}")
 
@@ -199,7 +199,7 @@ def mesh_wireframe(out: Path) -> None:
     fig.update_layout(
         width=1000, height=800, showlegend=False, paper_bgcolor="white",
         margin=dict(l=0, r=0, t=40, b=0),
-        title="Actual STL triangles at the outer rim (0.4\" patch): groove walls follow the cutter, no grid steps",
+        title="Actual STL triangles at the outer rim (10 mm patch): groove walls follow the cutter, no grid steps",
         scene=dict(xaxis=ax, yaxis=ax, zaxis=ax, aspectmode="data",
                    camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=0, y=0, z=1))),
     )

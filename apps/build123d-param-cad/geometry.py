@@ -1,6 +1,16 @@
 """Rodin torus groove math (pure Python + numpy, no CAD deps).
 
-Units: **inches** (matches the owner's SOLIDWORKS sketch).
+Units: geometry is computed in **inches** (groove sizes are 1/8" fractions);
+every export (STL / STEP) is scaled to **millimetres** with ``MM_PER_IN`` so
+slicers and CAD import it at true size.
+
+Default size = royal-cubit harmonics
+------------------------------------
+    C = royal cubit = 523.6 mm (52.36 cm)
+    tube cross-section circumference 2πr = C/4  →  r = C/(8π) ≈ 20.834 mm
+    ring centre-line circumference  2πR = C/2  →  R = C/(4π) ≈ 41.667 mm
+    outer Ø = 2(R + r) ≈ 125.0 mm, height = 2r ≈ 41.67 mm
+The old SOLIDWORKS sketch (R = 1.39", r = 0.695") is ``SOLIDWORKS_SIZE``.
 
 Torus coordinates
 -----------------
@@ -49,13 +59,33 @@ PATTERN_LABELS = {
 }
 PHOTO_SWEEP_DEG = 150.0  # measured from the photo: rim → hole travel
 
+MM_PER_IN = 25.4
+# Egyptian royal cubit ≈ 52.36 cm (Petrie's measured 20.62 in; also ≈ π/6 m).
+# All default torus sizes are harmonic fractions of this length.
+ROYAL_CUBIT_MM = 523.6
+CUBIT_FRACTIONS = {"1/4": 0.25, "1/2": 0.5, "1": 1.0}
+
+
+def cubit_radius_mm(fraction: float) -> float:
+    """Radius (mm) of a circle whose circumference is ``fraction`` × royal cubit."""
+    return ROYAL_CUBIT_MM * fraction / (2.0 * math.pi)
+
+
+def cubit_radius_in(fraction: float) -> float:
+    return cubit_radius_mm(fraction) / MM_PER_IN
+
+
+CUBIT_TUBE_FRACTION = 0.25  # tube cross-section circumference = C/4 (13.09 cm)
+CUBIT_RING_FRACTION = 0.5  # ring centre-line circumference = C/2 (26.18 cm)
+SOLIDWORKS_SIZE = (1.39, 0.695)  # (R, r) inches, the owner's original sketch
+
 
 @dataclass(frozen=True)
 class TorusParams:
-    """Parametric inputs (inches / degrees)."""
+    """Parametric inputs (inches / degrees). Defaults: royal-cubit harmonics."""
 
-    major_radius: float = 1.39  # axis → tube centre
-    tube_radius: float = 0.695  # minor radius
+    major_radius: float = cubit_radius_in(CUBIT_RING_FRACTION)  # axis → tube centre (41.667 mm)
+    tube_radius: float = cubit_radius_in(CUBIT_TUBE_FRACTION)  # minor radius (20.834 mm)
     n_grooves: int = 12  # per direction
     groove_depth: float = 0.125  # 1/8" total depth
     groove_width: float = 0.125  # 1/8" wide → U-groove (r=1/16 bottom + 1/16 walls)
@@ -63,6 +93,12 @@ class TorusParams:
     sweep_deg: float = PHOTO_SWEEP_DEG  # photo pattern: azimuth travelled rim → hole
     handedness: int = 1  # +1 / -1 mirrors the whole pattern
     rotation_deg: float = 0.0  # start pole of groove 0
+
+
+def bounding_box_mm(p: TorusParams) -> Tuple[float, float, float]:
+    """Overall (X, Y, Z) size of the exported part in mm."""
+    od = 2.0 * (p.major_radius + p.tube_radius) * MM_PER_IN
+    return od, od, 2.0 * p.tube_radius * MM_PER_IN
 
 
 def validate(p: TorusParams) -> None:
@@ -260,7 +296,7 @@ def photo_wall_analytic(p: TorusParams) -> float:
 def describe_formula(p: TorusParams | None = None) -> str:
     sweep = p.sweep_deg if p else PHOTO_SWEEP_DEG
     return (
-        "Units: inches.  φ = (1+√5)/2 ≈ 1.6180339887\n"
+        "Units: inches internally, exports in mm.  φ = (1+√5)/2 ≈ 1.6180339887\n"
         "point(θ,φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)\n"
         "Profile (true 3D): depth(t) = (d − ρ) + √(ρ² − t²) for |t| < w/2, t = 3D distance\n"
         "  to the surface centre-line;  ρ = w/2 (U-groove / semicircle) or (w²/4+d²)/(2d)\n"

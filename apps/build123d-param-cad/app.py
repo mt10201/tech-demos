@@ -11,6 +11,14 @@ import streamlit as st
 
 from code_snippet import generate_snippet
 from geometry import (
+    CUBIT_FRACTIONS,
+    CUBIT_RING_FRACTION,
+    CUBIT_TUBE_FRACTION,
+    MM_PER_IN,
+    ROYAL_CUBIT_MM,
+    SOLIDWORKS_SIZE,
+    bounding_box_mm,
+    cubit_radius_in,
     wall_height,
     PATTERN_LABELS,
     PATTERNS,
@@ -37,19 +45,43 @@ st.title("Rodin coil torus — groove lattice")
 st.caption(
     "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
     "12 + 12 constant-width U-grooves (1/8\" wide × 1/8\" deep) spiralling in both directions, leaving raised rhombus tiles "
-    "like the rainbow Rodin coil frame. Units: **inches** (SOLIDWORKS sketch: R = 1.39, r = 0.695)."
+    "like the rainbow Rodin coil frame. Default size: **royal-cubit harmonics** (tube circumference = ¼ cubit, "
+    "ring circumference = ½ cubit → ≈125 mm across). **STL and STEP downloads are in millimetres.**"
 )
+MM = MM_PER_IN
 
 with st.sidebar:
     st.header("Preset")
     pattern = st.radio("Groove pattern", list(PATTERNS), format_func=PATTERN_LABELS.get)
-    st.header("Torus (in)")
-    R = st.number_input("Major radius R (axis → tube centre)", 0.5, 6.0, 1.39, 0.01, format="%.3f")
-    r = st.number_input("Tube radius r", 0.1, 3.0, 0.695, 0.005, format="%.3f")
+    st.header("Torus size")
+    size_mode = st.radio(
+        "Sizing", ["Royal cubit harmonics", "SOLIDWORKS sketch (inches)", "Custom (mm)"],
+        help=f"Royal cubit C = {ROYAL_CUBIT_MM / 10:.2f} cm. Each circumference is a harmonic fraction of C.",
+    )
+    fr_keys = list(CUBIT_FRACTIONS)
+    if size_mode == "Royal cubit harmonics":
+        tube_f = st.selectbox("Tube cross-section circumference (× cubit)", fr_keys,
+                              index=fr_keys.index("1/4"))
+        ring_f = st.selectbox("Ring centre-line circumference, top view (× cubit)", fr_keys,
+                              index=fr_keys.index("1/2"))
+        r = cubit_radius_in(CUBIT_FRACTIONS[tube_f])
+        R = cubit_radius_in(CUBIT_FRACTIONS[ring_f])
+        st.caption(
+            f"C = {ROYAL_CUBIT_MM:.1f} mm · 2πr = {tube_f} C = {2 * math.pi * r * MM:.2f} mm → "
+            f"r = {r * MM:.3f} mm · 2πR = {ring_f} C = {2 * math.pi * R * MM:.2f} mm → R = {R * MM:.3f} mm"
+        )
+    elif size_mode == "SOLIDWORKS sketch (inches)":
+        R = st.number_input("Major radius R (in)", 0.5, 6.0, SOLIDWORKS_SIZE[0], 0.01, format="%.3f")
+        r = st.number_input("Tube radius r (in)", 0.1, 3.0, SOLIDWORKS_SIZE[1], 0.005, format="%.3f")
+    else:
+        R = st.number_input("Major radius R (mm)", 10.0, 150.0, round(cubit_radius_in(CUBIT_RING_FRACTION) * MM, 3),
+                            0.5, format="%.3f") / MM
+        r = st.number_input("Tube radius r (mm)", 3.0, 75.0, round(cubit_radius_in(CUBIT_TUBE_FRACTION) * MM, 3),
+                            0.5, format="%.3f") / MM
     st.header("Grooves")
-    width = st.slider("Groove width (in, true 3D)", 0.0625, 0.5, 0.125, 1 / 64, format="%.4f")
+    width = st.slider("Groove width (in, true 3D; 0.125\" = 3.175 mm)", 0.0625, 0.5, 0.125, 1 / 64, format="%.4f")
     depth = st.slider(
-        "Groove depth (in)", 0.03125, 0.25, 0.125, 1 / 64, format="%.4f",
+        "Groove depth (in; 0.125\" = 3.175 mm)", 0.03125, 0.25, 0.125, 1 / 64, format="%.4f",
         help="depth > width/2 → U-groove (semicircle bottom + straight walls); "
              "depth = width/2 → semicircle; depth < width/2 → shallow arc.",
     )
@@ -124,6 +156,15 @@ def rainbow_colors(verts: np.ndarray, gdepth: np.ndarray, p: TorusParams) -> np.
 
 
 verts, faces, gdepth = _mesh(params)
+bx, by, bz = bounding_box_mm(params)
+u1, u2, u3, u4 = st.columns(4)
+u1.metric("Export units", "millimetres")
+u2.metric("Overall size (Ø × height)", f"{bx:.1f} × {bz:.1f} mm",
+          help=f"Bounding box {bx:.1f} × {by:.1f} × {bz:.1f} mm (outer Ø × outer Ø × height)")
+u3.metric("Tube circumference 2πr", f"{2 * math.pi * params.tube_radius * MM / 10:.2f} cm",
+          help=f"= {2 * math.pi * params.tube_radius * MM / ROYAL_CUBIT_MM:.4f} royal cubit")
+u4.metric("Ring circumference 2πR", f"{2 * math.pi * params.major_radius * MM / 10:.2f} cm",
+          help=f"= {2 * math.pi * params.major_radius * MM / ROYAL_CUBIT_MM:.4f} royal cubit")
 paths = all_paths(params, 241)
 wall, wall_theta = _wall(params)
 
@@ -133,7 +174,7 @@ with col_view:
     st.subheader("3D preview")
     data = [
         go.Mesh3d(
-            x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
+            x=verts[:, 0] * MM, y=verts[:, 1] * MM, z=verts[:, 2] * MM,
             i=faces[:, 0], j=faces[:, 1], k=faces[:, 2],
             color="#c9a227", flatshading=False,
             lighting=dict(ambient=0.35, diffuse=0.85, specular=0.25, roughness=0.6, fresnel=0.1),
@@ -143,14 +184,14 @@ with col_view:
     if show_paths:
         for k, pth in enumerate(paths):
             data.append(go.Scatter3d(
-                x=pth[:, 0], y=pth[:, 1], z=pth[:, 2], mode="lines",
+                x=pth[:, 0] * MM, y=pth[:, 1] * MM, z=pth[:, 2] * MM, mode="lines",
                 line=dict(color="#3b82f6", width=3), showlegend=False,
             ))
     fig = go.Figure(data=data)
     fig.update_layout(
         scene=dict(
             aspectmode="data", bgcolor="#0e1117",
-            xaxis_title="X (in)", yaxis_title="Y (in)", zaxis_title="Z (in)",
+            xaxis_title="X (mm)", yaxis_title="Y (mm)", zaxis_title="Z (mm)",
             camera=(dict(eye=dict(x=1.15, y=1.15, z=1.05)) if cam == "Overview" else
                     dict(eye=dict(x=0.0, y=-0.95, z=0.30), center=dict(x=0, y=-0.3, z=-0.02))),
         ),
@@ -184,26 +225,26 @@ h_wall = wall_height(params)
 prof = ("U-groove" if h_wall > 1e-9 else
         "semicircle" if abs(depth - width / 2) < 1e-9 else "shallow arc")
 st.caption(
-    f"Profile: **{prof}**, {width:.4f}\" wide × {depth:.4f}\" deep (bottom radius "
+    f"Profile: **{prof}**, {width:.4f}\" ({width * MM:.3f} mm) wide × {depth:.4f}\" ({depth * MM:.3f} mm) deep (bottom radius "
     f"{cutter_radius(params):.4f}\"{f', walls {h_wall:.4f}' + chr(34) if h_wall > 1e-9 else ''}). "
     "Width is measured in true 3D, so it is identical on the rim, top, hole and bottom."
 )
 m1, m2, m3, m4, m5 = st.columns(5)
-m1.metric("Solid volume", f"{mesh_volume(verts, faces):.3f} in³")
+m1.metric("Solid volume", f"{mesh_volume(verts, faces) * MM**3 / 1000:.1f} cm³")
 m2.metric("Grooves", f"{len(paths)}  ({' + '.join(str(params.n_grooves) for _ in families(params))})")
 m3.metric("Sweep rim → hole", f"{math.degrees(top):.1f}°")
 m4.metric("Advance per wrap", f"{wrap_advance_deg(params):.1f}°")
-m5.metric("Min wall between grooves", f"{wall:.3f} in", help=f"at θ ≈ {wall_theta:.0f}° (180° = hole)")
+m5.metric("Min wall between grooves", f"{wall * MM:.2f} mm", help=f"{wall:.3f} in, at θ ≈ {wall_theta:.0f}° (180° = hole)")
 if wall < 0:
     st.warning(
         f"Neighbouring grooves of the same direction **merge** near θ ≈ {wall_theta:.0f}° "
-        f"(180° = the hole): centre-lines are {wall + width:.3f}\" apart but grooves are "
-        f"{width:.3f}\" wide, so the wall between them is {wall:.3f}\" (no tile left there). "
+        f"(180° = the hole): centre-lines are {(wall + width) * MM:.2f} mm apart but grooves are "
+        f"{width * MM:.2f} mm wide, so the wall between them is {wall * MM:.2f} mm (no tile left there). "
         "Reduce depth/width, use fewer grooves, or a smaller sweep."
     )
 elif wall < 0.04:
     st.warning(
-        f"Thinnest wall between neighbouring grooves is only **{wall:.3f}\"** "
+        f"Thinnest wall between neighbouring grooves is only **{wall * MM:.2f} mm** "
         f"(near θ ≈ {wall_theta:.0f}°, 180° = hole). It will print but be fragile; "
         "check your printer's minimum feature size."
     )
@@ -255,7 +296,7 @@ for col, (lab, S, T, N, w, dmax) in zip(cz[:2], [c for c in cl if c[0] in crops]
                    camera=dict(eye=dict(x=eye[0], y=eye[1], z=eye[2]), up=dict(x=N[0], y=N[1], z=N[2])),
                    bgcolor="#f4f4f4"),
         margin=dict(l=0, r=0, t=30, b=0), height=360, paper_bgcolor="#f4f4f4",
-        title=dict(text=f"{lab}: {w:.4f}\" wide", x=0.5, font=dict(color="#222", size=13)),
+        title=dict(text=f"{lab}: {w * MM:.3f} mm wide", x=0.5, font=dict(color="#222", size=13)),
     )
     col.plotly_chart(figp, use_container_width=True)
 with cz[2]:
@@ -274,14 +315,14 @@ with cz[2]:
             if not near.any():
                 continue
             pts = pts[near]
-            pf.add_trace(go.Scatter(x=(pts - S) @ B, y=-vertex_depth(params, pts), mode="lines",
-                                    line=dict(color=colr, width=2), name=f"{lab}: {w:.4f}\"",
+            pf.add_trace(go.Scatter(x=((pts - S) @ B) * MM, y=-vertex_depth(params, pts) * MM, mode="lines",
+                                    line=dict(color=colr, width=2), name=f"{lab}: {w * MM:.3f} mm",
                                     legendgroup=lab, showlegend=bool(ent is sec.entities[0])))
     pf.update_layout(
         height=360, margin=dict(l=10, r=10, t=30, b=10),
         title=dict(text="Mesh section ⟂ path (actual STL)", x=0.5, font=dict(size=13)),
-        xaxis_title="lateral offset (in)", yaxis_title="depth (in)",
-        xaxis=dict(range=[-0.12, 0.12]), yaxis=dict(scaleanchor="x", range=[-0.15, 0.02]),
+        xaxis_title="lateral offset (mm)", yaxis_title="depth (mm)",
+        xaxis=dict(range=[-3.0, 3.0]), yaxis=dict(scaleanchor="x", range=[-3.8, 0.5]),
         legend=dict(orientation="h", y=-0.3),
     )
     st.plotly_chart(pf, use_container_width=True)
@@ -293,12 +334,13 @@ with d1:
         st.session_state["stl"] = (params, *_stl(params))
     if st.session_state.get("stl") and st.session_state["stl"][0] == params:
         _, data_bytes, ntri = st.session_state["stl"]
-        st.download_button(f"Download STL — {ntri:,} triangles, {len(data_bytes)/1e6:.0f} MB",
-                           data=data_bytes, file_name=f"rodin_torus_{pattern}.stl",
+        st.download_button(f"Download STL (mm) — {ntri:,} triangles, {len(data_bytes)/1e6:.0f} MB",
+                           data=data_bytes, file_name=f"rodin_torus_{pattern}_mm.stl",
                            mime="model/stl", use_container_width=True)
     st.caption(
-        "STL = finished, watertight grooved solid from a manifold3d boolean "
-        "(torus − swept U-groove cutters): smooth walls, facet chord error < 0.001\"."
+        f"STL in **millimetres** ({bx:.1f} × {by:.1f} × {bz:.1f} mm): import at 100 % scale. "
+        "Finished, watertight grooved solid from a manifold3d boolean "
+        "(torus − swept U-groove cutters): smooth walls, facet chord error < 0.013 mm."
     )
 with d2:
     if st.button("Prepare STEP — finished solid (build123d, several minutes)",
@@ -317,11 +359,11 @@ with d2:
     if st.session_state.get("step_solid") and st.session_state["step_solid"][0] == params:
         st.download_button("Download STEP (finished grooved solid)",
                            data=st.session_state["step_solid"][1],
-                           file_name=f"rodin_torus_{pattern}_grooved.step",
+                           file_name=f"rodin_torus_{pattern}_grooved_mm.step",
                            mime="application/step", use_container_width=True)
     st.caption(
-        "Exact B-rep with the grooves already cut: opens in SOLIDWORKS as one solid body. "
-        "Takes about 4–5 min (24 sequential OpenCascade cuts); the file is ~90 MB."
+        "Exact B-rep with the grooves already cut, in **millimetres**: opens in SOLIDWORKS as one solid body. "
+        "Takes several minutes (24 sequential OpenCascade cuts); the file is ~90 MB."
     )
     if st.button("Build STEP tool bodies (fast fallback)", use_container_width=True):
         try:
@@ -330,7 +372,7 @@ with d2:
             st.error(f"STEP build failed: {exc}")
     if st.session_state.get("step") and st.session_state["step"][0] == params:
         st.download_button("Download STEP (torus + cutter bodies)", data=st.session_state["step"][1],
-                           file_name=f"rodin_torus_{pattern}_bodies.step", mime="application/step",
+                           file_name=f"rodin_torus_{pattern}_bodies_mm.step", mime="application/step",
                            use_container_width=True)
     st.caption(
         "Fallback: torus + groove cutter bodies + centre-lines. In SOLIDWORKS: "
@@ -340,7 +382,7 @@ with d2:
 with st.expander("Groove centre-line diagram (front view)"):
     tf = go.Figure()
     ring = np.linspace(0, 2 * math.pi, 361)
-    for rad in (R - r, R + r):
+    for rad in ((R - r) * MM, (R + r) * MM):
         tf.add_trace(go.Scatter(x=rad * np.cos(ring), y=rad * np.sin(ring), mode="lines",
                                 line=dict(color="#666", width=1), showlegend=False, hoverinfo="skip"))
     half = len(paths[0]) // 2
@@ -348,7 +390,7 @@ with st.expander("Groove centre-line diagram (front view)"):
     for k, pth in enumerate(paths):
         fam = k // params.n_grooves
         upper = pth[: half + 1]
-        tf.add_trace(go.Scatter(x=upper[:, 0], y=upper[:, 1], mode="lines",
+        tf.add_trace(go.Scatter(x=upper[:, 0] * MM, y=upper[:, 1] * MM, mode="lines",
                                 line=dict(color=colors[fam], width=2),
                                 name=f"direction {'+' if families(params)[fam] > 0 else '−'} (front half)",
                                 showlegend=k % params.n_grooves == 0, hoverinfo="skip"))
@@ -358,15 +400,15 @@ with st.expander("Groove centre-line diagram (front view)"):
         dphi = np.linspace(0, top + 3 * math.pi, 800)
         qq = np.array([golden_spiral_radius(q_max, x) for x in dphi])
         ang = phi0 + hand * dphi
-        tf.add_trace(go.Scatter(x=qq * np.cos(ang), y=qq * np.sin(ang), mode="lines",
+        tf.add_trace(go.Scatter(x=qq * MM * np.cos(ang), y=qq * MM * np.sin(ang), mode="lines",
                                 line=dict(color="#f5c542", width=2, dash="dash"),
                                 name="reference golden spiral (÷φ per 90°)"))
-    lim = (R + r) * 1.08
+    lim = (R + r) * MM * 1.08
     tf.update_layout(
         height=520, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#0e1117",
         plot_bgcolor="#0e1117", font_color="#ddd",
-        xaxis=dict(range=[-lim, lim], scaleanchor="y", showgrid=False, zeroline=False, title="X (in)"),
-        yaxis=dict(range=[-lim, lim], showgrid=False, zeroline=False, title="Y (in)"),
+        xaxis=dict(range=[-lim, lim], scaleanchor="y", showgrid=False, zeroline=False, title="X (mm)"),
+        yaxis=dict(range=[-lim, lim], showgrid=False, zeroline=False, title="Y (mm)"),
         legend=dict(orientation="h", y=-0.08, font=dict(color="#e5e7eb")),
     )
     st.plotly_chart(tf, use_container_width=True)

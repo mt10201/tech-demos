@@ -8,7 +8,10 @@ combine:
 
     body "torus"            – the plain torus (R, r)
     bodies "groove_00.."   – circular-profile sweeps along each groove axis (24 for the photo lattice, 12 otherwise)
-    wires  "axis_00.."     – the groove centre-lines (spline, inches)
+    wires  "axis_00.."     – the groove centre-lines (spline)
+
+Geometry is built in inches and scaled ×25.4 on export, so every STEP is
+written in **millimetres** (unit MM in the file header) at true size.
 
 In SOLIDWORKS: open the STEP → Insert ▸ Features ▸ Combine ▸ Subtract
 (main body = torus, bodies to subtract = all groove bodies).  The finished,
@@ -21,9 +24,9 @@ import tempfile
 from pathlib import Path
 from typing import List, Tuple
 
-from build123d import Circle, Compound, Edge, Plane, Pos, Rectangle, Solid, Wire, export_step
+from build123d import Circle, Compound, Edge, Plane, Pos, Rectangle, Solid, Unit, Wire, export_step
 
-from geometry import TorusParams, all_paths, cutter_radius, path_radius, validate, wall_height
+from geometry import MM_PER_IN, TorusParams, all_paths, cutter_radius, path_radius, validate, wall_height
 
 
 def groove_axes(p: TorusParams, n: int = 61, radius: float | None = None) -> List[Edge]:
@@ -77,13 +80,29 @@ def build_cad_bodies(p: TorusParams) -> Tuple[Solid, List[Solid], List[Edge]]:
     return torus, cutters, axes
 
 
+def _step_mm(shape, name: str) -> bytes:
+    """Scale an inch-unit shape to mm and write it as a mm STEP.
+
+    ``Compound.scale`` does not rescale ``children`` (which export_step writes
+    as the assembly), so each child is scaled and the compound rebuilt."""
+
+    def sc(x):
+        y = x.scale(MM_PER_IN)
+        y.label = x.label
+        return y
+
+    kids = list(getattr(shape, "children", ()) or ())
+    shape = Compound(children=[sc(k) for k in kids], label=shape.label) if kids else sc(shape)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / name
+        export_step(shape, str(path), unit=Unit.MM)
+        return path.read_bytes()
+
+
 def step_bytes(p: TorusParams) -> bytes:
     torus, cutters, axes = build_cad_bodies(p)
     comp = Compound(children=[torus, *cutters, *axes], label="rodin_torus")
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "rodin_torus.step"
-        export_step(comp, str(path))
-        return path.read_bytes()
+    return _step_mm(comp, "rodin_torus_mm.step")
 
 
 # ---- finished solid (torus with grooves already subtracted) -----------------
@@ -138,8 +157,4 @@ def finished_solid(p: TorusParams, progress=None):
 
 
 def finished_step_bytes(p: TorusParams, progress=None) -> bytes:
-    solid = finished_solid(p, progress)
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "rodin_torus_grooved.step"
-        export_step(solid, str(path))
-        return path.read_bytes()
+    return _step_mm(finished_solid(p, progress), "rodin_torus_grooved_mm.step")

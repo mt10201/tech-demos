@@ -149,8 +149,10 @@ def sweep_tube(p: TorusParams, P: np.ndarray, closed: bool, prof: np.ndarray):
 def _to_manifold(V: np.ndarray, F: np.ndarray):
     import manifold3d as mf
 
-    return mf.Manifold(mf.Mesh(vert_properties=np.ascontiguousarray(V, dtype=np.float32),
-                               tri_verts=np.ascontiguousarray(F, dtype=np.uint32)))
+    # float64 (Mesh64): float32 left ~1.5k zero-area slivers / coincident
+    # vertices that became non-manifold edges once a slicer merged vertices.
+    return mf.Manifold(mf.Mesh64(vert_properties=np.ascontiguousarray(V, dtype=np.float64),
+                                 tri_verts=np.ascontiguousarray(F, dtype=np.uint64)))
 
 
 def groove_tubes(p: TorusParams, ds: float = DS, n_arc: int = N_ARC):
@@ -178,12 +180,12 @@ def grooved_solid(p: TorusParams, chord: float = CHORD, ds: float = DS, n_arc: i
     res = torus - tool
     if res.status() != mf.Error.NoError:
         raise RuntimeError(f"boolean failed: {res.status()}")
-    mesh = res.to_mesh()
+    mesh = res.to_mesh64()
     return np.asarray(mesh.vert_properties)[:, :3].astype(np.float64), np.asarray(mesh.tri_verts).astype(np.int64)
 
 
 PREVIEW_KW = dict(chord=0.002, ds=0.05, n_arc=8)  # ~130k triangles, < 1 s
-EXPORT_KW = dict(chord=CHORD / 2, ds=DS / 2, n_arc=2 * N_ARC)  # ~580k triangles, ~29 MB
+EXPORT_KW = dict(chord=CHORD / 2, ds=DS / 2, n_arc=2 * N_ARC)  # ~680k triangles, ~34 MB (cubit size)
 
 
 def vertex_depth(p: TorusParams, V: np.ndarray) -> np.ndarray:
@@ -243,5 +245,5 @@ def crop_solid(V: np.ndarray, F: np.ndarray, centre, radius: float, segments: in
     import manifold3d as mf
 
     ball = mf.Manifold.sphere(radius, segments).translate(tuple(float(c) for c in centre))
-    m = (_to_manifold(V, F) ^ ball).to_mesh()
+    m = (_to_manifold(V, F) ^ ball).to_mesh64()
     return np.asarray(m.vert_properties[:, :3], float), np.asarray(m.tri_verts, np.int64)

@@ -172,10 +172,12 @@ def mesh_volume(verts: np.ndarray, faces: np.ndarray) -> float:
     return float(np.einsum("ij,ij->i", v0, np.cross(v1, v2)).sum() / 6.0)
 
 
-def stl_bytes(verts: np.ndarray, faces: np.ndarray) -> bytes:
+def stl_bytes(verts: np.ndarray, faces: np.ndarray, scale: float = 25.4) -> bytes:
+    """Binary STL. Geometry is in inches; ``scale`` = 25.4 writes **millimetres**
+    (STL has no unit field and slicers assume mm)."""
     import trimesh
 
-    m = trimesh.Trimesh(vertices=verts, faces=faces, process=False)
+    m = trimesh.Trimesh(vertices=np.asarray(verts, float) * scale, faces=faces, process=False)
     return m.export(file_type="stl")
 
 

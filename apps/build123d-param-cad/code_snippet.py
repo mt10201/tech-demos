@@ -21,7 +21,7 @@ def generate_snippet(p: TorusParams) -> str:
         consts = f"TOP, BOT = {top:.6f}, {bottom:.6f}   # front / back sweep (rad)"
     return f'''from build123d import *
 
-# Pattern: {p.pattern}    Units: inches    φ = {PHI:.10f}
+# Pattern: {p.pattern}    Units: inches (scaled to mm on export)    φ = {PHI:.10f}
 R, r      = {p.major_radius:.4f}, {p.tube_radius:.4f}   # major / tube radius
 DEPTH     = {p.groove_depth:.4f}             # groove depth
 WIDTH     = {p.groove_width:.4f}             # groove width (true 3D)
@@ -64,6 +64,8 @@ for d in DIRS:
 
 # OpenCascade's torus.cut(*cutters) is unreliable for these long helical pipes,
 # so export the exact bodies and Combine ▸ Subtract them in SOLIDWORKS:
-export_step(Compound(children=[torus, *cutters]), "rodin_torus.step")
-# The app's STL (finished grooved part) comes from an analytic mesh: torus_mesh.py
+# Scale ×25.4 so the STEP is in millimetres (true size in SOLIDWORKS / slicers).
+MM = 25.4
+export_step(Compound(children=[s.scale(MM) for s in (torus, *cutters)]), "rodin_torus_mm.step", unit=Unit.MM)
+# The app's STL (finished grooved part) comes from a manifold3d mesh boolean: boolean_mesh.py
 '''
