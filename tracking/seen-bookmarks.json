@@ -1,6 +1,15 @@
 {
   "proposed": [
     {
+      "id": "2100229768385822812",
+      "title": "build123d: Python parametric CAD (code-to-STL)",
+      "url": "https://x.com/gregisenberg/status/2100229768385822812",
+      "date": "2026-10-19",
+      "slug": "build123d-param-cad"
+    }
+  ],
+  "approved": [
+    {
       "id": "2110669062225178899",
       "title": "Polymarket API: Bitcoin Up or Down penny-side scanner",
       "url": "https://x.com/PolyDekos/status/2110669062225178899",
@@ -8,6 +17,5 @@
       "slug": "polymarket-penny-scanner"
     }
   ],
-  "approved": [],
   "skipped": []
 }
