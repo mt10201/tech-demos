@@ -173,6 +173,21 @@ def main():
                 page.wait_for_timeout(1500)
                 el.screenshot(path=str(MEDIA / name))
                 print(f"wrote {MEDIA / name}")
+
+            # Moai statue mode
+            page.evaluate("window.scrollTo(0, 0)")
+            page.get_by_text("Moai statue", exact=True).first.click()
+            page.wait_for_timeout(20_000)
+            page.evaluate("window.scrollTo(0, 0)")
+            mo = MEDIA / "moai_preview.png"
+            page.screenshot(path=str(mo), full_page=False)
+            print(f"wrote {mo}")
+            for idx, name in ((0, "moai_front.png"), (1, "moai_side.png"), (2, "moai_three_quarter.png")):
+                el = page.locator(".stPlotlyChart").nth(idx)
+                el.scroll_into_view_if_needed()
+                page.wait_for_timeout(1500)
+                el.screenshot(path=str(MEDIA / name))
+                print(f"wrote {MEDIA / name}")
             browser.close()
     finally:
         proc.terminate()

@@ -129,6 +129,74 @@ Defaults are: plate margin 7 mm from the torus edge to the plate edge, plate 4 m
 
 STL: watertight (also after slicer vertex merge), built in about 4 s. STEP: **Prepare mold STEPs** builds exact B-rep `mold_master_A_mm.step`, `mold_master_B_mm.step` and `pour_frame_mm.step` in about 4.5 min. Almost all of that is the 24 sequential groove cuts; splitting and fusing take about 17 s. Each file re-imports as 1 valid solid whose volume is within 0.1 % of the STL. OpenCascade silently dropped the plate when fusing it with the *bottom* half of the finished torus. Because the halves are identical, master B's STEP is built from the top half instead. If you change the pattern so the halves differ (golden presets, an odd start rotation), the B STEP is checked against the mesh volume and the app says to use the STL if the boolean fails.
 
+## Moai statue (side part)
+
+Mode **Moai statue** in the sidebar: a 6 in (152.4 mm) Rapa Nui moai in the Rano Raraku style
+(head and torso, flat base), with a height input, an optional base plinth, a front / side / 3/4
+preview and an STL download (`moai_152mm.stl` at the default height).
+
+![moai](media/moai_preview.png)
+
+| Front | Side | 3/4 |
+|---|---|---|
+| ![](media/moai_front.png) | ![](media/moai_side.png) | ![](media/moai_three_quarter.png) |
+
+**Source: parametric.** I looked for a scan I could download without logging in and whose licence
+allows reuse (CC0 / CC-BY / CC-BY-SA):
+
+- British Museum Hoa Hakananai'a: CC BY-NC-SA, not allowed.
+- Scan the World / Printables: NC licences, not allowed.
+- Smithsonian 3D: no moai.
+
+The CC-BY scans below are real, but Sketchfab requires a login to download them. You can swap one
+in by hand:
+
+- [Moai - Museo Nacional de Historia Natural de Chile](https://sketchfab.com/3d-models/moai-7099390468214c2dbcf283454e7b5c8a)
+- [Quarry Moai - Ryan Shackleton](https://sketchfab.com/3d-models/quarry-moai-rapa-nuieaster-island-dd6027d79fe14549ab7b2eae0d94de5d)
+- [Moai from Easter Island - Phelpst](https://sketchfab.com/3d-models/moai-from-easter-island-1e30cdc662594dd59e716c3aa7186b88)
+
+So `moai.py` sculpts the statue as a signed-distance field (numpy) and meshes it with
+scikit-image marching cubes. The proportions are fractions of the height H, taken from the
+typical Rano Raraku moai:
+
+| Feature | Value |
+|---|---|
+| Head (chin to crown) | ≈ 45 % of H |
+| Shoulders | at 0.52 H |
+| Nose tip | at 0.665 H |
+| Eyes | at 0.85 H |
+| Heavy brow | at 0.90 H |
+| Flat top of the head | — |
+
+Other features:
+
+- Long concave-bridged nose with flared nostrils.
+- Pursed, projecting lips and chin.
+- Long ears with a raised rim.
+- Arms down the sides, with long fingers meeting over the belly.
+- Nipples and navel.
+
+At 152.4 mm the statue is **57.9 × 48.9 × 152.4 mm** (X × Y × Z). It fits the Ender 2
+(150 × 150 × 200).
+
+**Mesh:**
+
+- The download is a ~0.5 mm marching-cubes grid, about 214k triangles.
+- It is watertight and consistently wound, also after a slicer-style vertex merge, and is a valid volume.
+- It stands on z = 0.
+- The plinth (6 mm, 4 mm margin) is unioned with manifold3d. The overall height stays the value you enter.
+
+**No STEP:** the statue is an organic mesh, and a faceted STEP with ~200k triangles is not a useful CAD file.
+
+**Print:**
+
+- Upright on the flat base.
+- 0.12–0.16 mm layers, 3 walls, 10–15 % infill.
+- Supports *everywhere*, or tree supports, for the overhangs under the brow, nose tip, lips and chin.
+  Those faces overhang ~70–90°.
+- Fingers and ear rims are ~1–1.5 mm. Print with a 0.4 mm nozzle and don't scale below ~100 mm.
+- Turn on the plinth for better bed grip.
+
 ## Run
 
 macOS / Linux:
@@ -158,6 +226,7 @@ REFERENCE_PHOTO=/path/to/photo.png python capture.py
 # writes media/preview.png, front_view.png, closeup_rim_vs_hole.png, zoom_groove_walls.png,
 #        mesh_wireframe_rim.png (actual STL triangles), preview_mirror.png, screenshot.png,
 #        snippet.png, mold_preview.png, mold_in_frame.png, mold_master_B.png, mold_section.png,
+#        moai_preview.png, moai_front.png, moai_side.png, moai_three_quarter.png,
 #        and compare_photo.png (only when REFERENCE_PHOTO is set)
 ```
 

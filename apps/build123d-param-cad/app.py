@@ -50,9 +50,21 @@ st.caption(
 )
 MM = MM_PER_IN
 
+MAIN = st.container()  # pages other than the torus draw here
+
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master"], horizontal=True,
-                    help="Mold master: silicone mold positives (two halves) + pour frame for this torus.")
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue"], horizontal=True,
+                    help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
+                         "Moai statue: a separate side part, a 6 in Rapa Nui moai.")
+if mode == "Moai statue":
+    import moai_page
+
+    _moai = moai_page.sidebar()
+    with MAIN:
+        moai_page.render(_moai)
+    st.stop()
+
+with st.sidebar:
     st.header("Preset")
     pattern = st.radio("Groove pattern", list(PATTERNS), format_func=PATTERN_LABELS.get)
     st.header("Torus size")
