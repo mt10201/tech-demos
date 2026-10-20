@@ -41,27 +41,26 @@ from torus_mesh import mesh_volume, stl_bytes
 
 st.set_page_config(page_title="Rodin torus · build123d", page_icon="◎", layout="wide")
 
-st.title("Rodin coil torus — groove lattice")
-st.caption(
-    "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
-    "12 + 12 constant-width U-grooves (1/8\" wide × 1/8\" deep) spiralling in both directions, leaving raised rhombus tiles "
-    "like the rainbow Rodin coil frame. Default size: **royal-cubit harmonics** (tube circumference = ¼ cubit, "
-    "ring circumference = ½ cubit → ≈125 mm across). **STL and STEP downloads are in millimetres.**"
-)
 MM = MM_PER_IN
 
-MAIN = st.container()  # pages other than the torus draw here
 
 with st.sidebar:
     mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai.")
+if mode != "Moai statue":
+    st.title("Rodin coil torus — groove lattice")
+    st.caption(
+        "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
+        "12 + 12 constant-width U-grooves (1/8\" wide × 1/8\" deep) spiralling in both directions, leaving raised rhombus tiles "
+        "like the rainbow Rodin coil frame. Default size: **royal-cubit harmonics** (tube circumference = ¼ cubit, "
+        "ring circumference = ½ cubit → ≈125 mm across). **STL and STEP downloads are in millimetres.**"
+    )
+
 if mode == "Moai statue":
     import moai_page
 
-    _moai = moai_page.sidebar()
-    with MAIN:
-        moai_page.render(_moai)
+    moai_page.render(moai_page.sidebar())
     st.stop()
 
 with st.sidebar:

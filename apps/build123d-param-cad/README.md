@@ -131,9 +131,78 @@ STL: watertight (also after slicer vertex merge), built in about 4 s. STEP: **Pr
 
 ## Moai statue (side part)
 
-Mode **Moai statue** in the sidebar: a 6 in (152.4 mm) Rapa Nui moai in the Rano Raraku style
-(head and torso, flat base), with a height input, an optional base plinth, a front / side / 3/4
-preview and an STL download (`moai_152mm.stl` at the default height).
+Mode **Moai statue** in the sidebar has two models:
+
+- **Real scan: Quarry Moai head** (default): a silicone mold master made from a photogrammetry scan of a
+  real Rano Raraku quarry moai. Download `moai_head_scan_152mm.stl`.
+- **Parametric (full statue)**: the stylised head-and-torso statue described further below. Download
+  `moai_152mm.stl`.
+
+### Real scan: Quarry Moai head (mold master)
+
+![moai head scan](media/moai_head_scan_preview.png)
+
+| Front | Side | 3/4 |
+|---|---|---|
+| ![](media/moai_head_scan_front.png) | ![](media/moai_head_scan_side.png) | ![](media/moai_head_scan_three_quarter.png) |
+
+**Source and licence.** Adapted from
+["Quarry Moai - Rapa Nui/Easter Island"](https://sketchfab.com/3d-models/quarry-moai-rapa-nuieaster-island-dd6027d79fe14549ab7b2eae0d94de5d)
+by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+- This file is **modified** (see the list below).
+- Commercial use, such as selling castings, is allowed if the credit is kept.
+- The full attribution and the suggested credit line are in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).
+- The original scan (Sketchfab login, 37 MB zip) is **not** in the repo. Only the processed mesh is committed:
+  - `assets/moai_head_scan_152mm.stl`: 21.3 MB, 426,898 triangles.
+  - A light preview copy.
+
+**What was done to the scan** (`scripts/build_moai_head_scan.py`, which reproduces the assets from the zip in about 40 s; it also needs `pip install fast-simplification`, which the app does not):
+
+1. **Orient.** The head axis was made vertical (the quarry statue leans about 22° in the scan) and the face points to −Y.
+2. **Crop and remove the soil.** The statue is buried to the neck: everything below the chin in the scan is the soil
+   mound, and its back is the ragged contact with the hillside. The model was cut at the underside of the chin,
+   which gives a **flat base**. Below the jaw line only the head's own footprint is kept. The back is a **flat
+   plane** fitted just inside the ragged hillside contact, with notches narrower than about 9 mm filled.
+3. **Solid rebuild.**
+   - Grid: 0.3 mm voxels, sampled from 5 M surface points.
+   - Closing: 0.75 mm dilate, fill, 0.75 mm erode. This closes every gap or hole narrower than about 1.5 mm:
+     the scan's texture-seam cracks (113k open edges), the sparse patch beside the right eye, the nostril
+     slits and the thin, patchy front of the nose.
+   - Cavities: internal ones are filled and only the largest piece is kept.
+   - Tunnels: any hole enclosed within a horizontal slice is plugged (1.7 k voxels, behind the jaw and ears).
+4. **Mesh.** Marching cubes, then 50% quadric decimation (mean deviation about 0.1 mm, max about 0.23 mm).
+   Rescaled to exactly 152.4 mm.
+
+**Check** (`tests/test_moai_scan.py`):
+
+- Watertight, consistent winding, a valid volume, a single body.
+- **Euler characteristic 2, so genus 0**: no through-holes or tunnels. The area under the nose is a closed
+  recess, not a gap.
+- **66.2 × 69.5 × 152.4 mm**, base about 53 × 42 mm. Fits the Ender 2 bed.
+
+**Print and mold notes:**
+
+- Print upright on the flat base, 0.12 mm layers, 3–4 walls.
+- Tree supports under the brow, the nose tip and the chin.
+- Sand, prime or seal the print before pouring.
+- The brow, nose and chin are real undercuts, but there are no locks:
+  - one-piece mold: soft silicone (Shore 10–20 A), poured over the master standing on its base;
+  - two-piece mold: split along the ear line.
+- The flat back can also sit on the mold board for an open-back mold.
+- Credit the scan author on listings or products (see `assets/ATTRIBUTION.md`).
+
+**Caveats:**
+
+- The back of the head and the neck were never captured, because the statue stands against and in the hillside.
+  The flat back and flat base are added geometry, not the statue's real shape.
+- Detail finer than about 0.5 mm (fine weathering) is softened by the 0.3 mm voxel grid and the closing.
+- The scan's own blue artefacts on the nose were texture only. The geometry there was intact apart from small holes, which are now closed.
+
+### Parametric (full statue)
+
+The stylised head-and-torso statue sculpted in code. It has a height input, an optional base plinth and the
+same front / side / 3/4 preview; the default download is `moai_152mm.stl`.
 
 ![moai](media/moai_preview.png)
 
@@ -226,6 +295,7 @@ REFERENCE_PHOTO=/path/to/photo.png python capture.py
 # writes media/preview.png, front_view.png, closeup_rim_vs_hole.png, zoom_groove_walls.png,
 #        mesh_wireframe_rim.png (actual STL triangles), preview_mirror.png, screenshot.png,
 #        snippet.png, mold_preview.png, mold_in_frame.png, mold_master_B.png, mold_section.png,
+#        moai_head_scan_{preview,front,side,three_quarter}.png,
 #        moai_preview.png, moai_front.png, moai_side.png, moai_three_quarter.png,
 #        and compare_photo.png (only when REFERENCE_PHOTO is set)
 ```

@@ -174,20 +174,28 @@ def main():
                 el.screenshot(path=str(MEDIA / name))
                 print(f"wrote {MEDIA / name}")
 
-            # Moai statue mode
+            # Moai statue mode: real-scan head (default), then the parametric statue
+            def moai_shots(prefix, wait_ms):
+                page.wait_for_timeout(wait_ms)
+                page.evaluate("""() => { window.scrollTo(0, 0);
+                    document.querySelectorAll('*').forEach(e => { if (e.scrollTop > 0) e.scrollTop = 0; }); }""")
+                page.wait_for_timeout(1000)
+                shot = MEDIA / f"{prefix}_preview.png"
+                page.screenshot(path=str(shot), full_page=False)
+                print(f"wrote {shot}")
+                for idx, view in ((0, "front"), (1, "side"), (2, "three_quarter")):
+                    el = page.locator(".stPlotlyChart").nth(idx)
+                    el.scroll_into_view_if_needed()
+                    page.wait_for_timeout(1500)
+                    el.screenshot(path=str(MEDIA / f"{prefix}_{view}.png"))
+                    print(f"wrote {MEDIA / f'{prefix}_{view}.png'}")
+
             page.evaluate("window.scrollTo(0, 0)")
             page.get_by_text("Moai statue", exact=True).first.click()
-            page.wait_for_timeout(20_000)
+            moai_shots("moai_head_scan", 25_000)
             page.evaluate("window.scrollTo(0, 0)")
-            mo = MEDIA / "moai_preview.png"
-            page.screenshot(path=str(mo), full_page=False)
-            print(f"wrote {mo}")
-            for idx, name in ((0, "moai_front.png"), (1, "moai_side.png"), (2, "moai_three_quarter.png")):
-                el = page.locator(".stPlotlyChart").nth(idx)
-                el.scroll_into_view_if_needed()
-                page.wait_for_timeout(1500)
-                el.screenshot(path=str(MEDIA / name))
-                print(f"wrote {MEDIA / name}")
+            page.get_by_text("Parametric (full statue)", exact=True).first.click()
+            moai_shots("moai", 20_000)
             browser.close()
     finally:
         proc.terminate()

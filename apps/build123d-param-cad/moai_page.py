@@ -1,4 +1,4 @@
-"""Streamlit 'Moai statue' page: parametric Rapa Nui moai, STL in mm."""
+"""Streamlit 'Moai statue' page: real-scan moai head (default) or parametric full statue, STL in mm."""
 
 from __future__ import annotations
 
@@ -6,7 +6,11 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
+import moai_scan
 from moai import DEFAULT_HEIGHT_MM, ENDER2_BED_MM, MoaiParams, build, fits_bed, stl_bytes
+
+SCAN = "Real scan: Quarry Moai head"
+PARAMETRIC = "Parametric (full statue)"
 
 STONE = "#8a7f73"
 SKY = "#bcd4ea"
@@ -17,13 +21,18 @@ VIEWS = {
 }
 
 
-def sidebar() -> MoaiParams:
+def sidebar():
     st.sidebar.header("Moai statue (mm)")
+    source = st.sidebar.radio("Model", [SCAN, PARAMETRIC], index=0,
+                              help="Real scan: photogrammetry of a Rano Raraku quarry moai, head only, rebuilt as a "
+                                   "watertight genus-0 mold master. Parametric: stylised full statue sculpted in code.")
     h = st.sidebar.number_input("Overall height (mm)", 40.0, 200.0, float(DEFAULT_HEIGHT_MM), 0.1,
                                 format="%.1f", help="152.4 mm = 6 in. Includes the plinth if enabled.")
-    plinth = st.sidebar.checkbox("Base plinth", value=False,
-                                 help="A 6 mm block under the statue, 4 mm wider all round (better bed grip).")
-    return MoaiParams(height_mm=h, plinth=plinth)
+    plinth = False
+    if source == PARAMETRIC:
+        plinth = st.sidebar.checkbox("Base plinth", value=False,
+                                     help="A 6 mm block under the statue, 4 mm wider all round (better bed grip).")
+    return source, MoaiParams(height_mm=h, plinth=plinth)
 
 
 @st.cache_data(show_spinner="Sculpting the moai (signed-distance model)…", max_entries=6)
@@ -45,8 +54,12 @@ def figure(v, f, eye, height=560) -> go.Figure:
     return fig
 
 
-def render(p: MoaiParams) -> None:
-    st.subheader("Moai statue — Rapa Nui, Rano Raraku style")
+def render(choice) -> None:
+    source, p = choice if isinstance(choice, tuple) else (PARAMETRIC, choice)
+    if source == SCAN:
+        render_scan(p.height_mm)
+        return
+    st.title("Moai statue — Rapa Nui, Rano Raraku style")
     st.caption(
         "**Parametric** model: no CC0 / CC-BY moai scan could be downloaded without a login, so this "
         "statue is sculpted in Python from documented moai proportions: elongated head ≈ 45 % of the height, "
@@ -82,4 +95,39 @@ def render(p: MoaiParams) -> None:
         "the statue is an organic mesh, and a faceted STEP of ~200 k triangles is not a useful CAD file. "
         "Print upright, 0.12–0.16 mm layers, supports *touching build plate* off and *everywhere* on "
         "(or tree supports) for the overhangs under the brow, nose, lips and chin."
+    )
+
+
+def render_scan(height_mm: float) -> None:
+    st.title("Moai head — real scan (Rano Raraku quarry moai)")
+    st.caption(
+        f"**Source:** [{moai_scan.TITLE}]({moai_scan.URL}) by **{moai_scan.AUTHOR}**, licensed "
+        f"[{moai_scan.LICENSE}]({moai_scan.LICENSE_URL}). {moai_scan.CHANGES}"
+    )
+    v, f = moai_scan.head_mesh(height_mm, preview=True)
+    ext = v.max(0) - v.min(0)
+    ok = fits_bed(v)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Size X × Y × Z (mm)", f"{ext[0]:.1f} × {ext[1]:.1f} × {ext[2]:.1f}",
+              delta=f"fits Ender-2 {ENDER2_BED_MM[0]:.0f}×{ENDER2_BED_MM[1]:.0f}×{ENDER2_BED_MM[2]:.0f}"
+              if ok else "too big for the bed", delta_color="normal" if ok else "inverse")
+    c2.metric("Height", f"{ext[2]:.1f} mm", help=f"{ext[2] / 25.4:.2f} in")
+    c3.metric("Topology", "genus 0", help="Watertight, one solid, Euler characteristic 2: no through-holes or tunnels.")
+    cols = st.columns(3)
+    for col, (name, eye) in zip(cols, VIEWS.items()):
+        with col:
+            st.caption(name)
+            st.plotly_chart(figure(v, f, eye), use_container_width=True)
+    st.caption(f"Preview: decimated copy ({len(f):,} triangles). The download is the full mold master.")
+
+    st.subheader("Download (mm)")
+    data = moai_scan.stl_bytes(height_mm)
+    name = moai_scan.file_name(height_mm)
+    st.download_button(f"Download {name} — {len(data) / 1e6:.1f} MB", data=data, file_name=name,
+                       mime="model/stl", use_container_width=True)
+    st.caption(
+        "Mold master: flat base and flat back, closed nostrils and no tunnels, so silicone can't lock in. "
+        "Large undercuts (brow, nose, chin) remain; use a soft silicone (Shore 10–20 A) or a two-part mold. "
+        "Print upright on the base, 0.12 mm layers, tree supports under the brow, nose and chin; "
+        "sand / prime the print before molding. Credit the scan author on anything you sell (CC BY 4.0)."
     )
