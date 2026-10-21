@@ -6,14 +6,6 @@
       "url": "https://x.com/gregisenberg/status/2100229768385822812",
       "date": "2026-10-19",
       "slug": "build123d-param-cad"
-    },
-    {
-      "id": "2112335978165583977",
-      "title": "Kronos: open-source candlestick (OHLCV) forecasting foundation model",
-      "url": "https://x.com/carm1nee/status/2112335978165583977",
-      "date": "2026-10-21",
-      "source": "new bookmark",
-      "slug": "kronos-candle-forecast"
     }
   ],
   "approved": [
@@ -30,6 +22,14 @@
       "url": "https://x.com/Smartpigai/status/2098967844314861802",
       "date": "2026-10-20",
       "slug": "financedatabase-explorer"
+    },
+    {
+      "id": "2112335978165583977",
+      "title": "Kronos: open-source candlestick (OHLCV) forecasting foundation model",
+      "url": "https://x.com/carm1nee/status/2112335978165583977",
+      "date": "2026-10-21",
+      "source": "new bookmark",
+      "slug": "kronos-candle-forecast"
     }
   ],
   "skipped": []
