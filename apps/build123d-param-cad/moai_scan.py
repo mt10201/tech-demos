@@ -24,8 +24,8 @@ LICENSE = "CC BY 4.0"
 LICENSE_URL = "https://creativecommons.org/licenses/by/4.0/"
 CHANGES = (
     "Modified: re-oriented upright; cropped to the head at the chin; soil/hillside removed; flat base added; "
-    "the uncaptured back (hillside contact) replaced by a sculpted rounded back of head and neck with a "
-    "weathered-stone texture (the face is the unchanged scan); gaps under ~1.5 mm, nostrils and scan holes closed "
+    "the uncaptured back (hillside contact) replaced by a sculpted back of head and neck modelled on real moai "
+    "(near-vertical, rounded edges, shallow hollows) with a weathered-stone texture (the face is the unchanged scan); gaps under ~1.5 mm, nostrils and scan holes closed "
     "(voxel rebuild at 0.3 mm), made watertight and genus 0; decimated; scaled to 152.4 mm."
 )
 ATTRIBUTION = (

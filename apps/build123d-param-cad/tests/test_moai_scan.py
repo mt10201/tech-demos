@@ -26,7 +26,7 @@ def test_watertight_single_solid_genus_zero(head):
 def test_size_mm_and_bed(head):
     assert head.extents[2] == pytest.approx(152.4, abs=0.01)
     assert head.bounds[0][2] == pytest.approx(0.0, abs=1e-6)
-    assert 55 < head.extents[0] < 80 and 80 < head.extents[1] < 100  # depth includes the rounded back
+    assert 55 < head.extents[0] < 80 and 65 < head.extents[1] < 90  # depth includes the sculpted back
     assert fits_bed(head.vertices)
     assert 250_000 < len(head.faces) < 650_000
 
@@ -36,15 +36,20 @@ def test_flat_base(head):
     assert np.ptp(base[:, 0]) > 40 and np.ptp(base[:, 1]) > 30
 
 
-def test_rounded_back(head):
-    """The back is a rounded head (deepest at the middle, falling away to the sides), not a flat cut face."""
-    for z in (60.0, 100.0):
+def test_natural_back(head):
+    """Back modelled on real moai: near-vertical, raised rear edges with a shallow hollow centre, deep crown."""
+    centre = []
+    for z in (60.0, 80.0, 100.0, 120.0):
         p = head.section([0, 0, 1], [0, 0, z]).vertices
         xm = 0.5 * (p[:, 0].min() + p[:, 0].max()); hw = 0.5 * np.ptp(p[:, 0])
         back = lambda x0: p[np.abs(p[:, 0] - x0) < 1.5, 1].max()
-        assert back(xm) - back(xm + 0.6 * hw) > 2.0 and back(xm) - back(xm - 0.6 * hw) > 2.0
+        centre.append(back(xm))
+        if z >= 80:
+            assert back(xm) < back(xm + 0.6 * hw) - 0.3 and back(xm) < back(xm - 0.6 * hw) - 0.3  # hollow centre
+            assert back(xm) > back(xm + 0.6 * hw) - 3 and back(xm) > back(xm - 0.6 * hw) - 3    # but shallow
+    assert np.ptp(centre) < 2.5  # near-vertical back of the head
     top = head.vertices[head.vertices[:, 2] > 120]
-    assert np.ptp(top[:, 1]) > 35  # head as deep as a real moai's near the crown (the scan alone was ~20 mm)
+    assert np.ptp(top[:, 1]) > 30  # real head depth near the crown (the scan alone was ~20 mm)
 
 
 def test_scales_and_names():

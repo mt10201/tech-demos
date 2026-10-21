@@ -16,15 +16,16 @@ permitted by CC BY 4.0, provided this attribution is kept and the changes are in
 - Cropped to the head at the underside of the chin; the soil/hillside the quarry statue is buried in was
   removed; a flat base was added at the chin.
 - The scan's back (the ragged contact with the hillside, not statue surface) was cut to a plane, narrow
-  notches in front of it filled, and a sculpted (not scanned) rounded back of head and neck was added
-  behind it: a smooth superellipse volume (10 mm deep at the base to ~36 mm at ear height, rounding over
-  into the crown) with a low-amplitude (~0.7 mm) weathered-stone noise texture, blended into the scan's
-  sides with a 4 mm smooth union. The face is the unchanged scan.
+  notches in front of it filled, and a sculpted (not scanned) back of head and neck modelled on real moai
+  was added behind it: broad and nearly vertical just behind the ears, rounded rear edges and top-back
+  corner, a ~1 mm hollow in the centre, a shallow concave nape, with a low-amplitude (~0.7 mm)
+  weathered-stone noise texture, blended into the scan's sides with a 4 mm smooth union. The face is the
+  unchanged scan.
 - Rebuilt as a solid on a 0.3 mm voxel grid with a 0.75 mm morphological closing: gaps and holes narrower
   than ~1.5 mm, the nostrils and the texture-seam cracks of the scan were closed; internal cavities and
   tunnels were filled, so the part is watertight and genus 0 (Euler characteristic 2) for use as a
   silicone mold master.
-- Decimated to ~538k triangles and scaled to 152.4 mm (6 in) tall, units mm.
+- Decimated to ~471k triangles and scaled to 152.4 mm (6 in) tall, units mm.
 
 Processing script: `scripts/build_moai_head_scan.py`.
 

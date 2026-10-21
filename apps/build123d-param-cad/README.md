@@ -154,7 +154,7 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 - Commercial use, such as selling castings, is allowed if the credit is kept.
 - The full attribution and the suggested credit line are in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).
 - The original scan (Sketchfab login, 37 MB zip) is **not** in the repo. Only the processed mesh is committed:
-  - `assets/moai_head_scan_152mm.stl`: 26.9 MB, 537,730 triangles.
+  - `assets/moai_head_scan_152mm.stl`: 23.5 MB, 470,720 triangles.
   - A light preview copy.
 
 **What was done to the scan** (`scripts/build_moai_head_scan.py`, which reproduces the assets from the zip in about 40 s; it also needs `pip install fast-simplification`, which the app does not):
@@ -164,14 +164,18 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
    mound, and its back is the ragged contact with the hillside. The model was cut at the underside of the chin,
    which gives a **flat base**. Below the jaw line only the head's own footprint is kept. The ragged hillside
    contact at the back is cut to a plane fitted just inside it, with notches narrower than about 9 mm filled.
-3. **Rounded back (sculpted).** The scan never saw the back of the head, so a natural back is added behind
-   that plane: per height a superellipse (exponent 2.3) as wide as the head, 10 mm deep at the base, ~36 mm
-   at ear height, rounding over into the crown above 112 mm, so the head is about as deep as it is wide like a
-   real moai. It carries a weathered-stone texture (smooth band-limited noise, ~0.7 mm, no spikes) that fades
-   to zero at the join, and is blended into the scan's sides with a 4 mm smooth-min, so there is no seam.
-   Nothing more than ~8 mm in front of the old flat back changes: the face is the untouched scan
-   (before decimation the face vertices are bit-identical; after it the face differs from the previous
-   version by at most 0.01 mm).
+3. **Natural back (sculpted, modelled on real moai).** The scan never saw the back of the head, so one is added
+   behind that plane. Real moai (Hoa Hakananai'a in the British Museum, Ahu Tongariki, the Louvre head) have the
+   ears at the rear of the head's sides and a broad back of head just behind them: nearly flat and vertical,
+   rounded rear edges and top-back corner, a slightly hollow centre, and a neck that flows into the shoulders.
+   So, per height: a superellipse (exponent 4) as wide as the head, set by absolute position (the cut plane leans
+   ~9°, the new back is near-vertical, parallel to the face) about 5–7 mm behind the ear lobes; a ~1 mm hollow in
+   the centre between the raised rear edges; a quarter-ellipse round-over into the crown above 124 mm; a shallow
+   concave nape and the neck flaring back toward the shoulders at the base. It carries a weathered-stone texture
+   (smooth band-limited noise, ~0.7 mm, no spikes) that fades to zero at the join, and is blended into the scan's
+   sides with a 4 mm smooth-min, so there is no seam. Nothing more than ~10 mm in front of the old flat back
+   changes: the face is the untouched scan (before decimation the face vertices are bit-identical; after it the
+   face differs from the previous version by at most 0.01 mm).
 4. **Solid rebuild.**
    - Grid: 0.3 mm voxels, sampled from 5 M surface points.
    - Closing: 0.75 mm dilate, fill, 0.75 mm erode. This closes every gap or hole narrower than about 1.5 mm:
@@ -187,8 +191,8 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 - Watertight, consistent winding, a valid volume, a single body.
 - **Euler characteristic 2, so genus 0**: no through-holes or tunnels. The area under the nose is a closed
   recess, not a gap.
-- **66.4 × 89.4 × 152.4 mm**, base about 53 × 52 mm. Fits the Ender 2 bed.
-- The back is rounded (no flat face) and each horizontal slice of it is convex, so it pulls cleanly.
+- **66.4 × 73.7 × 152.4 mm**, base about 54 × 46 mm. Fits the Ender 2 bed.
+- The back is a single-valued surface seen from behind (the hollows are ~1 mm and open), so it pulls cleanly.
 
 **Print and mold notes:**
 
@@ -203,7 +207,7 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 **Caveats:**
 
 - The back of the head and the neck were never captured, because the statue stands against and in the hillside.
-  The rounded back and the flat base are sculpted geometry in the style of real moai, not this statue's real shape.
+  The back and the flat base are sculpted geometry modelled on real moai backs, not this statue's real shape.
 - Detail finer than about 0.5 mm (fine weathering) is softened by the 0.3 mm voxel grid and the closing.
 - The scan's own blue artefacts on the nose were texture only. The geometry there was intact apart from small holes, which are now closed.
 

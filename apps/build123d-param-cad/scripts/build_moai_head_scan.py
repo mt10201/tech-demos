@@ -13,9 +13,11 @@ Steps: orient (head axis -> +Z by PCA of the upper scan, nose -> -Y) -> scale so
 erode 0.75 mm (morphological closing: gaps/holes < ~1.5 mm, nostril slits and texture-seam cracks close)
 -> flat back plane (the scan's back is the ragged hillside contact, not statue) with narrow notches filled
 -> soil removed (below the jaw only the head footprint is kept) -> flat base at the chin
--> rounded back: behind that plane, a smooth superellipse back of head / neck (depth 10 mm at the base to
-   ~36 mm at ear height, rounding over into the crown) with low-amplitude weathered-stone noise, joined by a
-   4 mm smooth-min; nothing more than ~8 mm in front of the old flat face changes (the face is the raw scan)
+-> natural back (sculpted; the scan never saw it): behind that plane a broad, nearly vertical back of head just
+   behind the ears, as on real moai (Hoa Hakananai'a, Ahu Tongariki): superellipse (n = 4) plan with rounded rear
+   edges, a ~1-2 mm hollow in the centre between them, a rounded top-back corner, a shallow concave nape and the
+   neck flaring back toward the shoulders; low-amplitude weathered-stone noise; 4 mm smooth-min join. Nothing
+   more than ~8 mm in front of the old flat face changes (the face is the raw scan)
 -> largest piece, cavities filled, horizontal-slice tunnels plugged -> marching cubes
 -> decimate 50 % (quadric) -> check watertight + Euler characteristic 2.
 """
@@ -53,14 +55,23 @@ def load_oriented(zip_path):
 # ---- rounded natural back of the head (replaces the flat cut back) ----
 BACK_OVERLAP = 4.0   # mm: the new back volume starts this far inside the scan, in front of the old flat face
 BACK_K = 4.0         # mm: smooth-union radius (no seam between the scan sides and the new back)
-BACK_N = 2.3         # superellipse exponent of the back-of-head plan shape (2 = ellipse)
-# depth (mm) added behind the old flat face, per height (mm above the base): gives a near-vertical,
-# slightly convex back of head and neck; head depth at ear height ~0.8 x head width (real moai proportion)
-BACK_DEPTH = ((0, 10.0), (40, 20.0), (80, 30.0), (110, 35.0), (140, 36.0), (152.4, 36.0))
-CROWN_R0 = 112.0     # mm: above this the back rounds over into the crown (quarter ellipse)
+BACK_N = 4.0         # plan-view superellipse exponent: 4 = broad, nearly flat back with rounded rear edges
+# Real moai (Hoa Hakananai'a, Ahu Tongariki, Louvre head): the ears sit at the rear of the head's sides and the
+# back of the head is only just behind them - nearly flat and vertical, with rounded rear edges and top-back
+# corner, a shallow concave nape where the head meets the neck, and a slightly hollowed centre between the
+# raised rear edges/ears. The scan's cut plane leans forward ~9 deg (hillside contact), so the new back is set
+# by absolute position: nearly vertical (parallel to the face), just behind the ear lobes, with a shallow concave
+# nape and the neck flaring back toward the shoulders. Target back y (mm), relative to the old plane at
+# ear-lobe height (z = 60 mm), per height above the base:
+BACK_Y = ((0, 11.9), (20, 9.4), (40, 5.7), (55, 5.4), (75, 6.1), (100, 6.7), (125, 6.7), (152.4, 6.7))
+BACK_MIN = 1.5       # mm: at least this much added behind the old plane everywhere
+DISH_MM = 2.0        # mm: shallow concavity in the centre of the back of the head (between the raised edges)
+DISH_W = 0.72        # half-width of the dish as a fraction of the back half-width
+DISH_Z = (55.0, 140.0)  # dish fades in/out over these heights (back of the skull, not the neck or crown)
+CROWN_R0 = 124.0     # mm: above this the back rounds over into the crown (quarter ellipse)
 BACK_SMOOTH = 12.0   # mm: sigma for smoothing the back width along the height (gradual taper, no ledges)
 CROWN_GAP = 3.0      # mm: the rounding ends this far below the crown edge (stays within the scan height)
-STONE_AMP = 0.7     # mm: peak-ish amplitude of the weathered-stone texture on the new back
+STONE_AMP = 0.7      # mm: peak-ish amplitude of the weathered-stone texture on the new back
 STONE_SEED = 7
 
 
@@ -83,8 +94,10 @@ def round_back(f, X, Y, Z, yb, V, log=print):
     xls = ndi.gaussian_filter1d(xl, BACK_SMOOTH / V, mode="nearest")
     xrs = ndi.gaussian_filter1d(xr, BACK_SMOOTH / V, mode="nearest")
     xc = 0.5 * (xls + xrs); a = 0.5 * (xrs - xls) - 0.5
-    zb = np.array([p[0] for p in BACK_DEPTH]); db = np.array([p[1] for p in BACK_DEPTH])
-    d = PchipInterpolator(zb, db, extrapolate=True)(np.clip(Z, 0, zb[-1]))
+    zb = np.array([p[0] for p in BACK_Y]); ob = np.array([p[1] for p in BACK_Y])
+    y_ref = np.interp(60.0, Z, yb)
+    y_target = y_ref + PchipInterpolator(zb, ob, extrapolate=True)(np.clip(Z, 0, zb[-1]))
+    d = np.maximum(y_target - yb, BACK_MIN)
     zt = zc - CROWN_GAP                           # top of the rounded back
     t = np.clip((Z - CROWN_R0) / (zt - CROWN_R0), 0, 1)
     d = d * np.sqrt(1 - t ** 2)                   # quarter-ellipse round-over into the crown
@@ -101,12 +114,17 @@ def round_back(f, X, Y, Z, yb, V, log=print):
     g = np.maximum(g, (y0[None, None, :] - Y[None, :, None]))   # nothing in front of y0
     g = np.maximum(g, (Z - (zc - 0.5))[None, None, :])           # nothing above the crown
     del r
+    # shallow dish in the centre of the back of the skull (pushes the surface in by up to DISH_MM)
+    u = (X[:, None] - xc[None, :]) / A[None, :]                                    # (nx, nz)
+    zf = np.clip((Z - DISH_Z[0]) / 15.0, 0, 1) * np.clip((DISH_Z[1] - Z) / 15.0, 0, 1)
+    dish = DISH_MM * np.clip(1 - (u / DISH_W) ** 2, 0, None) ** 2 * zf[None, :]
+    g = g + dish[:, None, :] * (Y[None, :, None] > yb[None, None, :])
     g = ndi.gaussian_filter(g.astype(np.float32), 1.0)
     gn = np.sqrt(sum(q * q for q in np.gradient(g, V)))
     B = (g / np.maximum(gn, 0.3)).astype(np.float32)          # ~ signed distance in mm near the surface
     del g, gn
     # weathered-stone texture: smooth band-limited noise (sigma 3 mm + 1.2 mm + 0.7 mm), no spikes,
-    # faded in from zero at the old face so the scan sides join without a seam
+    # faded in from zero at the old face (over 4 mm) so the scan sides join without a seam
     rng = np.random.default_rng(STONE_SEED)
     n1 = ndi.gaussian_filter(rng.standard_normal(f.shape).astype(np.float32), 3.0 / V)
     n2 = ndi.gaussian_filter(rng.standard_normal(f.shape).astype(np.float32), 1.2 / V)
@@ -114,7 +132,7 @@ def round_back(f, X, Y, Z, yb, V, log=print):
     n = n1 / n1.std() + 0.45 * n2 / n2.std() + 0.3 * n3 / n3.std()
     del n1, n2, n3
     n *= STONE_AMP / (2.5 * n.std())              # ~2.5 sigma ≈ STONE_AMP
-    w = np.clip((Y[None, :, None] - yb[None, None, :]) / 6.0, 0, 1).astype(np.float32)
+    w = np.clip((Y[None, :, None] - yb[None, None, :]) / 4.0, 0, 1).astype(np.float32)
     B = B + w * n
     del n, w
     # smooth union (polynomial smooth-min) with the scan

@@ -127,7 +127,7 @@ def render_scan(height_mm: float) -> None:
     st.download_button(f"Download {name} — {len(data) / 1e6:.1f} MB", data=data, file_name=name,
                        mime="model/stl", use_container_width=True)
     st.caption(
-        "Mold master: flat base, rounded weathered back (sculpted, the scan never captured it), closed nostrils "
+        "Mold master: flat base, sculpted weathered back modelled on real moai (the scan never captured it), closed nostrils "
         "and no tunnels, so silicone can't lock in. "
         "Large undercuts (brow, nose, chin) remain; use a soft silicone (Shore 10–20 A) or a two-part mold. "
         "Print upright on the base, 0.12 mm layers, tree supports under the brow, nose and chin; "
