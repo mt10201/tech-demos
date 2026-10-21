@@ -142,9 +142,9 @@ Mode **Moai statue** in the sidebar has two models:
 
 ![moai head scan](media/moai_head_scan_preview.png)
 
-| Front | Side | 3/4 |
-|---|---|---|
-| ![](media/moai_head_scan_front.png) | ![](media/moai_head_scan_side.png) | ![](media/moai_head_scan_three_quarter.png) |
+| Front | Side | 3/4 | Back |
+|---|---|---|---|
+| ![](media/moai_head_scan_front.png) | ![](media/moai_head_scan_side.png) | ![](media/moai_head_scan_three_quarter.png) | ![](media/moai_head_scan_back.png) |
 
 **Source and licence.** Adapted from
 ["Quarry Moai - Rapa Nui/Easter Island"](https://sketchfab.com/3d-models/quarry-moai-rapa-nuieaster-island-dd6027d79fe14549ab7b2eae0d94de5d)
@@ -154,7 +154,7 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 - Commercial use, such as selling castings, is allowed if the credit is kept.
 - The full attribution and the suggested credit line are in [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md).
 - The original scan (Sketchfab login, 37 MB zip) is **not** in the repo. Only the processed mesh is committed:
-  - `assets/moai_head_scan_152mm.stl`: 21.3 MB, 426,898 triangles.
+  - `assets/moai_head_scan_152mm.stl`: 26.9 MB, 537,730 triangles.
   - A light preview copy.
 
 **What was done to the scan** (`scripts/build_moai_head_scan.py`, which reproduces the assets from the zip in about 40 s; it also needs `pip install fast-simplification`, which the app does not):
@@ -162,16 +162,24 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 1. **Orient.** The head axis was made vertical (the quarry statue leans about 22° in the scan) and the face points to −Y.
 2. **Crop and remove the soil.** The statue is buried to the neck: everything below the chin in the scan is the soil
    mound, and its back is the ragged contact with the hillside. The model was cut at the underside of the chin,
-   which gives a **flat base**. Below the jaw line only the head's own footprint is kept. The back is a **flat
-   plane** fitted just inside the ragged hillside contact, with notches narrower than about 9 mm filled.
-3. **Solid rebuild.**
+   which gives a **flat base**. Below the jaw line only the head's own footprint is kept. The ragged hillside
+   contact at the back is cut to a plane fitted just inside it, with notches narrower than about 9 mm filled.
+3. **Rounded back (sculpted).** The scan never saw the back of the head, so a natural back is added behind
+   that plane: per height a superellipse (exponent 2.3) as wide as the head, 10 mm deep at the base, ~36 mm
+   at ear height, rounding over into the crown above 112 mm, so the head is about as deep as it is wide like a
+   real moai. It carries a weathered-stone texture (smooth band-limited noise, ~0.7 mm, no spikes) that fades
+   to zero at the join, and is blended into the scan's sides with a 4 mm smooth-min, so there is no seam.
+   Nothing more than ~8 mm in front of the old flat back changes: the face is the untouched scan
+   (before decimation the face vertices are bit-identical; after it the face differs from the previous
+   version by at most 0.01 mm).
+4. **Solid rebuild.**
    - Grid: 0.3 mm voxels, sampled from 5 M surface points.
    - Closing: 0.75 mm dilate, fill, 0.75 mm erode. This closes every gap or hole narrower than about 1.5 mm:
      the scan's texture-seam cracks (113k open edges), the sparse patch beside the right eye, the nostril
      slits and the thin, patchy front of the nose.
    - Cavities: internal ones are filled and only the largest piece is kept.
    - Tunnels: any hole enclosed within a horizontal slice is plugged (1.7 k voxels, behind the jaw and ears).
-4. **Mesh.** Marching cubes, then 50% quadric decimation (mean deviation about 0.1 mm, max about 0.23 mm).
+5. **Mesh.** Marching cubes, then 50% quadric decimation (mean deviation about 0.1 mm, max about 0.23 mm).
    Rescaled to exactly 152.4 mm.
 
 **Check** (`tests/test_moai_scan.py`):
@@ -179,7 +187,8 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 - Watertight, consistent winding, a valid volume, a single body.
 - **Euler characteristic 2, so genus 0**: no through-holes or tunnels. The area under the nose is a closed
   recess, not a gap.
-- **66.2 × 69.5 × 152.4 mm**, base about 53 × 42 mm. Fits the Ender 2 bed.
+- **66.4 × 89.4 × 152.4 mm**, base about 53 × 52 mm. Fits the Ender 2 bed.
+- The back is rounded (no flat face) and each horizontal slice of it is convex, so it pulls cleanly.
 
 **Print and mold notes:**
 
@@ -189,13 +198,12 @@ by **Ryan Shackleton**, licensed under [CC BY 4.0](https://creativecommons.org/l
 - The brow, nose and chin are real undercuts, but there are no locks:
   - one-piece mold: soft silicone (Shore 10–20 A), poured over the master standing on its base;
   - two-piece mold: split along the ear line.
-- The flat back can also sit on the mold board for an open-back mold.
 - Credit the scan author on listings or products (see `assets/ATTRIBUTION.md`).
 
 **Caveats:**
 
 - The back of the head and the neck were never captured, because the statue stands against and in the hillside.
-  The flat back and flat base are added geometry, not the statue's real shape.
+  The rounded back and the flat base are sculpted geometry in the style of real moai, not this statue's real shape.
 - Detail finer than about 0.5 mm (fine weathering) is softened by the 0.3 mm voxel grid and the closing.
 - The scan's own blue artefacts on the nose were texture only. The geometry there was intact apart from small holes, which are now closed.
 

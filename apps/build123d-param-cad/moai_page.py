@@ -19,6 +19,7 @@ VIEWS = {
     "Side": dict(x=2.6, y=0.0, z=0.15),
     "3/4": dict(x=1.6, y=-2.1, z=0.55),
 }
+SCAN_VIEWS = {**VIEWS, "Back": dict(x=-1.3, y=2.3, z=0.35)}
 
 
 def sidebar():
@@ -41,12 +42,12 @@ def _mesh(p: MoaiParams, resolution: int):
     return v, f
 
 
-def figure(v, f, eye, height=560) -> go.Figure:
+def figure(v, f, eye, height=560, light_back=False) -> go.Figure:
     fig = go.Figure(go.Mesh3d(
         x=v[:, 0], y=v[:, 1], z=v[:, 2], i=f[:, 0], j=f[:, 1], k=f[:, 2], color=STONE,
         flatshading=False, hoverinfo="skip",
         lighting=dict(ambient=0.35, diffuse=0.9, specular=0.1, roughness=0.9),
-        lightposition=dict(x=-300, y=-400, z=500)))
+        lightposition=dict(x=-300, y=400 if light_back else -400, z=500)))
     ax = dict(visible=False)
     fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor=SKY,
                       scene=dict(xaxis=ax, yaxis=ax, zaxis=ax, aspectmode="data", bgcolor=SKY,
@@ -113,11 +114,11 @@ def render_scan(height_mm: float) -> None:
               if ok else "too big for the bed", delta_color="normal" if ok else "inverse")
     c2.metric("Height", f"{ext[2]:.1f} mm", help=f"{ext[2] / 25.4:.2f} in")
     c3.metric("Topology", "genus 0", help="Watertight, one solid, Euler characteristic 2: no through-holes or tunnels.")
-    cols = st.columns(3)
-    for col, (name, eye) in zip(cols, VIEWS.items()):
+    cols = st.columns(4)
+    for col, (name, eye) in zip(cols, SCAN_VIEWS.items()):
         with col:
             st.caption(name)
-            st.plotly_chart(figure(v, f, eye), use_container_width=True)
+            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), use_container_width=True)
     st.caption(f"Preview: decimated copy ({len(f):,} triangles). The download is the full mold master.")
 
     st.subheader("Download (mm)")
@@ -126,7 +127,8 @@ def render_scan(height_mm: float) -> None:
     st.download_button(f"Download {name} — {len(data) / 1e6:.1f} MB", data=data, file_name=name,
                        mime="model/stl", use_container_width=True)
     st.caption(
-        "Mold master: flat base and flat back, closed nostrils and no tunnels, so silicone can't lock in. "
+        "Mold master: flat base, rounded weathered back (sculpted, the scan never captured it), closed nostrils "
+        "and no tunnels, so silicone can't lock in. "
         "Large undercuts (brow, nose, chin) remain; use a soft silicone (Shore 10–20 A) or a two-part mold. "
         "Print upright on the base, 0.12 mm layers, tree supports under the brow, nose and chin; "
         "sand / prime the print before molding. Credit the scan author on anything you sell (CC BY 4.0)."

@@ -13,6 +13,9 @@ Steps: orient (head axis -> +Z by PCA of the upper scan, nose -> -Y) -> scale so
 erode 0.75 mm (morphological closing: gaps/holes < ~1.5 mm, nostril slits and texture-seam cracks close)
 -> flat back plane (the scan's back is the ragged hillside contact, not statue) with narrow notches filled
 -> soil removed (below the jaw only the head footprint is kept) -> flat base at the chin
+-> rounded back: behind that plane, a smooth superellipse back of head / neck (depth 10 mm at the base to
+   ~36 mm at ear height, rounding over into the crown) with low-amplitude weathered-stone noise, joined by a
+   4 mm smooth-min; nothing more than ~8 mm in front of the old flat face changes (the face is the raw scan)
 -> largest piece, cavities filled, horizontal-slice tunnels plugged -> marching cubes
 -> decimate 50 % (quadric) -> check watertight + Euler characteristic 2.
 """
@@ -21,6 +24,7 @@ from pathlib import Path
 import numpy as np, trimesh
 from scipy import ndimage as ndi
 from scipy.spatial import cKDTree
+from scipy.interpolate import PchipInterpolator
 from skimage.measure import marching_cubes
 
 HERE = Path(__file__).resolve().parents[1]
@@ -44,6 +48,87 @@ def load_oriented(zip_path):
     m.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2 - ang, [0, 0, 1]))
     m.apply_translation(-np.array([*m.bounds.mean(0)[:2], m.bounds[0][2]]))
     return m
+
+
+# ---- rounded natural back of the head (replaces the flat cut back) ----
+BACK_OVERLAP = 4.0   # mm: the new back volume starts this far inside the scan, in front of the old flat face
+BACK_K = 4.0         # mm: smooth-union radius (no seam between the scan sides and the new back)
+BACK_N = 2.3         # superellipse exponent of the back-of-head plan shape (2 = ellipse)
+# depth (mm) added behind the old flat face, per height (mm above the base): gives a near-vertical,
+# slightly convex back of head and neck; head depth at ear height ~0.8 x head width (real moai proportion)
+BACK_DEPTH = ((0, 10.0), (40, 20.0), (80, 30.0), (110, 35.0), (140, 36.0), (152.4, 36.0))
+CROWN_R0 = 112.0     # mm: above this the back rounds over into the crown (quarter ellipse)
+BACK_SMOOTH = 12.0   # mm: sigma for smoothing the back width along the height (gradual taper, no ledges)
+CROWN_GAP = 3.0      # mm: the rounding ends this far below the crown edge (stays within the scan height)
+STONE_AMP = 0.7     # mm: peak-ish amplitude of the weathered-stone texture on the new back
+STONE_SEED = 7
+
+
+def round_back(f, X, Y, Z, yb, V, log=print):
+    """f: SDF (mm, <0 inside) with a flat back at y = yb(z). Returns f with a rounded, weathered back.
+    Nothing in front of y = yb - BACK_OVERLAP - BACK_K is changed (the face is the untouched scan)."""
+    solid = f < 0
+    nz = len(Z)
+    # per height: x-extent of the old flat back face (band 1.5 mm in front of the plane)
+    band = (Y[None, :] > yb[:, None] - 1.5) & (Y[None, :] <= yb[:, None])          # (nz, ny)
+    edge = (solid & band.T[None, :, :]).any(1)                                    # (nx, nz)
+    has = edge.any(0)
+    xl = np.where(has, X[np.argmax(edge, 0)], np.nan)
+    xr = np.where(has, X[len(X) - 1 - np.argmax(edge[::-1], 0)], np.nan)
+    kz = np.where(has)[0]; k0, k1 = kz.min(), kz.max()
+    zc = Z[k1]                                    # crown height at the back edge
+    for arr in (xl, xr):                          # fill tiny gaps, smooth along z (sigma 4 mm)
+        good = ~np.isnan(arr)
+        arr[~good] = np.interp(np.where(~good)[0], np.where(good)[0], arr[good])
+    xls = ndi.gaussian_filter1d(xl, BACK_SMOOTH / V, mode="nearest")
+    xrs = ndi.gaussian_filter1d(xr, BACK_SMOOTH / V, mode="nearest")
+    xc = 0.5 * (xls + xrs); a = 0.5 * (xrs - xls) - 0.5
+    zb = np.array([p[0] for p in BACK_DEPTH]); db = np.array([p[1] for p in BACK_DEPTH])
+    d = PchipInterpolator(zb, db, extrapolate=True)(np.clip(Z, 0, zb[-1]))
+    zt = zc - CROWN_GAP                           # top of the rounded back
+    t = np.clip((Z - CROWN_R0) / (zt - CROWN_R0), 0, 1)
+    d = d * np.sqrt(1 - t ** 2)                   # quarter-ellipse round-over into the crown
+    y0 = yb - BACK_OVERLAP
+    D = d + BACK_OVERLAP
+    # smooth analytic implicit (no voxel terraces): per-height superellipse behind y0 (plan view),
+    # its depth rounding over into the crown above CROWN_R0
+    A = np.maximum(a, 2.0)
+    dx = np.abs(X[:, None, None] - xc[None, None, :]) / A[None, None, :]
+    dy = np.maximum(Y[None, :, None] - y0[None, None, :], 0) / D[None, None, :]
+    r = (dx ** BACK_N + dy ** BACK_N) ** (1 / BACK_N)
+    del dx, dy
+    g = (r - 1) * np.minimum(A, D)[None, None, :]
+    g = np.maximum(g, (y0[None, None, :] - Y[None, :, None]))   # nothing in front of y0
+    g = np.maximum(g, (Z - (zc - 0.5))[None, None, :])           # nothing above the crown
+    del r
+    g = ndi.gaussian_filter(g.astype(np.float32), 1.0)
+    gn = np.sqrt(sum(q * q for q in np.gradient(g, V)))
+    B = (g / np.maximum(gn, 0.3)).astype(np.float32)          # ~ signed distance in mm near the surface
+    del g, gn
+    # weathered-stone texture: smooth band-limited noise (sigma 3 mm + 1.2 mm + 0.7 mm), no spikes,
+    # faded in from zero at the old face so the scan sides join without a seam
+    rng = np.random.default_rng(STONE_SEED)
+    n1 = ndi.gaussian_filter(rng.standard_normal(f.shape).astype(np.float32), 3.0 / V)
+    n2 = ndi.gaussian_filter(rng.standard_normal(f.shape).astype(np.float32), 1.2 / V)
+    n3 = ndi.gaussian_filter(rng.standard_normal(f.shape).astype(np.float32), 0.7 / V)
+    n = n1 / n1.std() + 0.45 * n2 / n2.std() + 0.3 * n3 / n3.std()
+    del n1, n2, n3
+    n *= STONE_AMP / (2.5 * n.std())              # ~2.5 sigma ≈ STONE_AMP
+    w = np.clip((Y[None, :, None] - yb[None, None, :]) / 6.0, 0, 1).astype(np.float32)
+    B = B + w * n
+    del n, w
+    # smooth union (polynomial smooth-min) with the scan
+    h = np.clip(BACK_K - np.abs(f - B), 0, None) / BACK_K
+    out = np.minimum(f, B) - (h * h * BACK_K * 0.25).astype(np.float32)
+    ztop = Z[solid.any((0, 1))].max()
+    # never higher than the scan's crown (keeps the 152.4 mm height and scale): only clips added material
+    out = np.maximum(out, np.minimum(f, (Z - ztop)[None, None, :]))
+    changed = np.abs(out - f) > 1e-6
+    ci = np.argwhere(changed & (np.abs(out) < 2))
+    if len(ci):
+        dy_ch = (Y[ci[:, 1]] - yb[ci[:, 2]]).min()
+        log(f"back: added depth max {d.max():.1f} mm; changes start {dy_ch:.1f} mm relative to the old flat face")
+    return out.astype(np.float32), d, a, xc
 
 
 H_MM = 152.4
@@ -133,6 +218,9 @@ zsoil = (Z_SOIL - Z_CHIN) * s
 f = np.where(Z[None, None, :] < zsoil, np.maximum(f, fs[:, :, None].astype(np.float32)), f)
 # flat base at z = 0
 f = np.maximum(f, -Z[None, None, :].astype(np.float32))
+# rounded, weathered back of head and neck in place of the flat back (the face is not touched)
+f, _, _, _ = round_back(f, X, Y, Z, yb, VOX, log)
+f = np.maximum(f, -Z[None, None, :].astype(np.float32))
 # keep the largest solid piece, fill internal cavities
 lab, n = ndi.label(f < 0); sizes = ndi.sum(np.ones_like(lab), lab, range(1, n + 1))
 keep = lab == (1 + int(np.argmax(sizes)))
@@ -162,6 +250,8 @@ log('mesh', len(out.faces), 'wt', out.is_watertight, 'euler', out.euler_number, 
 import fast_simplification  # noqa: E402
 
 v2, f2 = fast_simplification.simplify(out.vertices.astype(np.float64), out.faces, target_reduction=0.5, agg=7)
+# decimation can nudge a few base-rim vertices microns below the base plane: snap them back (flat base)
+zl = v2[:, 2].min(); zb = np.median(v2[v2[:, 2] < zl + 0.05, 2]); v2[v2[:, 2] < zb, 2] = zb
 final = trimesh.Trimesh(v2, f2, process=True)
 final.apply_translation([-final.bounds.mean(0)[0], -final.bounds.mean(0)[1], -final.bounds[0][2]])
 final.apply_scale(H_MM / final.extents[2])
