@@ -7,6 +7,14 @@
       "date": "2026-10-21",
       "source": "new bookmark",
       "slug": "kronos-candle-forecast"
+    },
+    {
+      "id": "2102413376148095032",
+      "title": "hmmlearn: Hidden Markov Model market-regime detector for allocation (HMM + regime-switching)",
+      "url": "https://x.com/0xTrackmind/status/2102413376148095032",
+      "date": "2026-10-22",
+      "source": "older bookmark",
+      "slug": "hmm-regime-detector"
     }
   ],
   "approved": [
@@ -32,5 +40,12 @@
       "slug": "build123d-param-cad"
     }
   ],
-  "skipped": []
+  "skipped": [
+    {
+      "id": "2112584468703977949",
+      "title": "Reverse-engineered TradingView Premium repo (piracy, not demo-able)",
+      "url": "https://x.com/i/status/2112584468703977949",
+      "date": "2026-10-22"
+    }
+  ]
 }
