@@ -167,7 +167,8 @@ def main():
             mp = MEDIA / "mold_preview.png"
             page.screenshot(path=str(mp), full_page=False)
             print(f"wrote {mp}")
-            for idx, name in ((0, "mold_in_frame.png"), (1, "mold_master_B.png"), (2, "mold_section.png")):
+            for idx, name in ((0, "mold_in_frame.png"), (1, "mold_master_B.png"), (2, "mold_section.png"),
+                              (3, "mold_groove_detail.png")):
                 el = page.locator(".stPlotlyChart").nth(idx)
                 el.scroll_into_view_if_needed()
                 page.wait_for_timeout(1500)

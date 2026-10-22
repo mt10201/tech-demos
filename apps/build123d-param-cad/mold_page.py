@@ -16,12 +16,15 @@ from mold import (
     above_floor_volume,
     fits_bed,
     frame_dims,
+    frame_z0,
+    groove_dims,
     half_height_mm,
     halves_identical,
     key_offset,
     key_torus_gap,
     masters,
     part_sizes,
+    plate_thickness_a,
     plate_thickness_b,
     silicone_volume_cm3,
     stl_bytes_mm,
@@ -50,8 +53,29 @@ def sidebar() -> MoldParams:
     clearance = st.sidebar.slider("Frame clearance", 0.0, 1.0, 0.3, 0.05)
     cover = st.sidebar.slider("Silicone cover above the torus", 3.0, 30.0, 10.0, 0.5)
     wall = st.sidebar.slider("Frame wall thickness", 1.2, 6.0, 3.0, 0.2)
+    groove = st.sidebar.checkbox(
+        "Locating groove for the frame wall", value=True,
+        help="Cuts a shallow channel in the top of both bases (A and B) that the bottom edge of the "
+             "pour-frame wall drops into: the wall self-locates and silicone can't run straight out "
+             "of the seam. Hot-glue the outside seam as usual. The plate grows past the frame by "
+             "the clearance + lip; the frame keeps its footprint.")
+    gd, gc, lip, ch = 1.6, 0.25, 1.5, 0.4
+    if groove:
+        gd = st.sidebar.slider("Groove depth", 1.0, 3.0, 1.6, 0.1,
+                               help="1.6 mm = 8 layers at 0.2 mm. The plate is thickened if needed so "
+                                    "≥ 2 mm stays under the groove.")
+        gc = st.sidebar.slider("Groove clearance per side", 0.1, 0.5, 0.25, 0.05,
+                               help="Gap on each side of the wall in the groove. 0.2–0.3 mm suits an "
+                                    "Ender-2 with a 0.4 mm nozzle.")
+        lip = st.sidebar.slider("Groove outer lip", 1.0, 4.0, 1.5, 0.1,
+                                help="Plate left outside the groove (its outer wall).")
+        ch = st.sidebar.slider("Wall bottom chamfer (45°)", 0.0, 1.0, 0.4, 0.1,
+                               help="Relief on both bottom edges of the frame wall so first-layer "
+                                    "squish (elephant foot) doesn't stop it seating in the groove.")
     return MoldParams(margin=margin, plate_thickness=plate_t, key_radius=key_r,
-                      clearance=clearance, cover=cover, wall=wall, frame_style=style)
+                      clearance=clearance, cover=cover, wall=wall, frame_style=style,
+                      groove=groove, groove_depth=gd, groove_clearance=gc, groove_lip=lip,
+                      frame_chamfer=ch)
 
 
 @st.cache_data(show_spinner="Building mold masters…", max_entries=4)
@@ -94,7 +118,7 @@ def section_figure(t: TorusParams, m: MoldParams, meshes) -> go.Figure:
     u = np.array([1.0, 1.0, 0.0]) / math.sqrt(2)
     fig = go.Figure()
     fo, fi, fh = frame_dims(t, m)
-    z0 = -m.ledge_height if m.frame_style == "ledge" else -m.plate_thickness
+    z0 = frame_z0(m)
     d = fi / 2 * math.sqrt(2)  # frame inner corner along the diagonal
     fig.add_trace(go.Scatter(x=[-d, d, d, -d, -d], y=[0, 0, z0 + fh, z0 + fh, 0], fill="toself",
                              fillcolor="rgba(120,170,255,0.25)", line=dict(width=0),
@@ -115,6 +139,38 @@ def section_figure(t: TorusParams, m: MoldParams, meshes) -> go.Figure:
                       title=dict(text="Diagonal section through 2 keys", x=0.5, font=dict(size=13)),
                       xaxis_title="along the diagonal (mm)", yaxis_title="z (mm)",
                       yaxis=dict(scaleanchor="x"), legend=dict(orientation="h", y=-0.35))
+    return fig
+
+
+def groove_detail_figure(t: TorusParams, m: MoldParams, meshes) -> go.Figure:
+    """Close-up section (plane y = 0) of the frame wall standing in the locating groove."""
+    import trimesh
+
+    from mold import plate_half
+
+    gi, go_, gd = groove_dims(t, m)
+    ph = plate_half(t, m)
+    fig = go.Figure()
+    for key, color, label in (("master_A", "#8a92a3", "master A base"), ("pour_frame", FRAME, "pour frame wall")):
+        V, F = meshes[key]
+        sec = trimesh.Trimesh(V, F, process=False).section(plane_origin=(0, 0, 0), plane_normal=(0, 1, 0))
+        if sec is None:
+            continue
+        first = True
+        for ent in sec.entities:
+            p = sec.vertices[ent.points]
+            fig.add_trace(go.Scatter(x=p[:, 0], y=p[:, 2], mode="lines", fill="toself",
+                                     line=dict(color=color, width=1.5), fillcolor=color,
+                                     name=label, legendgroup=label, showlegend=first))
+            first = False
+    fig.add_trace(go.Scatter(x=[gi - 6, gi - 6, frame_dims(t, m)[1] / 2, frame_dims(t, m)[1] / 2],
+                             y=[0, 6, 6, 0], mode="lines", fill="toself", fillcolor="rgba(120,170,255,0.25)",
+                             line=dict(width=0), name="silicone"))
+    fig.update_layout(height=300, margin=dict(l=10, r=10, t=30, b=10),
+                      title=dict(text=f"Groove: {go_ - gi:.2f} × {gd:.1f} mm, {m.wall:.1f} mm wall", x=0.5, font=dict(size=13)),
+                      xaxis=dict(range=[gi - 6, ph + 2], title="x (mm)"),
+                      yaxis=dict(range=[-plate_thickness_a(m) - 1, 6], scaleanchor="x", title="z (mm)"),
+                      legend=dict(orientation="h", y=-0.4))
     return fig
 
 
@@ -149,12 +205,20 @@ def render(t: TorusParams, m: MoldParams) -> None:
               help=f"keys at (±{key_offset(t, m):.1f}, ±{key_offset(t, m):.1f}) mm")
     c4.metric("Top half vs flipped bottom", "identical" if same else "different",
               help=f"symmetric-difference volume / half volume = {rel:.1e}")
-    if plate_thickness_b(m) > m.plate_thickness:
+    if m.groove:
+        gi, go_, gd = groove_dims(t, m)
+        st.caption(f"Locating groove (both bases): {go_ - gi:.2f} mm wide × {gd:.1f} mm deep channel for the "
+                   f"{m.wall:.1f} mm wall ({m.groove_clearance:.2f} mm clearance outside"
+                   f"{'' if m.frame_style == 'ledge' else f', {m.groove_clearance:.2f} mm inside'}), "
+                   f"{m.groove_lip:.1f} mm lip outside it; {m.frame_chamfer:.1f} mm chamfers on the wall's "
+                   f"bottom edges. Groove starts {gi - key_offset(t, m) - m.key_radius:.1f} mm outside the keys; "
+                   f"{plate_thickness_a(m) - (-frame_z0(m)) :.1f} mm of plate left under it on master A.")
+    if plate_thickness_b(m) > plate_thickness_a(m):
         st.caption(f"Master B's plate is {plate_thickness_b(m):.1f} mm thick (key radius + 2 mm) so the "
                    f"{m.key_radius:.1f} mm sockets keep a floor.")
     if not all(fits_bed(s, bed) for s in sizes.values()):
         st.warning("A part is larger than the Ender-2's 150 × 150 mm print area: reduce the plate margin, "
-                   "the frame wall or the clearance.")
+                   "the frame wall, the clearance or the groove lip.")
 
     left, right = st.columns([3, 2], gap="medium")
     with left:
@@ -164,7 +228,8 @@ def render(t: TorusParams, m: MoldParams) -> None:
         fig.update_layout(scene=_scene(dict(x=0.35, y=-1.45, z=1.55)), height=520,
                           margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
-        st.caption("Master A in its pour frame (like the reference photo).")
+        st.caption("Master A in its pour frame (like the reference photo)"
+                   + (", the wall standing in the locating groove." if m.groove else "."))
     with right:
         vb, fb = meshes["master_B"]
         fig_b = go.Figure([_mesh(vb, fb, PLATE)])
@@ -173,6 +238,8 @@ def render(t: TorusParams, m: MoldParams) -> None:
         st.plotly_chart(fig_b, use_container_width=True)
         st.caption("Master B: bottom half turned over, key sockets.")
         st.plotly_chart(section_figure(t, m, meshes), use_container_width=True)
+        if m.groove:
+            st.plotly_chart(groove_detail_figure(t, m, meshes), use_container_width=True)
 
     st.subheader("Mold downloads (mm)")
     d1, d2 = st.columns(2)

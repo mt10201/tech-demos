@@ -105,23 +105,51 @@ The bed assumed is the **Creality Ender-2's 150 × 150 × 200 mm print volume**:
 
 | Part (as printed) | X × Y × Z (mm) | Fits 150 × 150? |
 |---|---|---|
-| `mold_master_A_mm.stl` | 139.0 × 139.0 × 24.8 (4 mm plate + 20.83 mm half torus) | yes |
-| `mold_master_B_mm.stl` | 139.0 × 139.0 × 30.8 (10 mm plate + 20.83 mm half torus) | yes |
-| `pour_frame_mm.stl` | 145.6 × 145.6 × 34.8 (3 mm wall, 0.3 mm clearance) | yes, 2.2 mm to spare per side |
+| `mold_master_A_mm.stl` | 149.1 × 149.1 × 24.8 (4 mm plate + 20.83 mm half torus; locating groove) | yes, 0.45 mm to spare per side |
+| `mold_master_B_mm.stl` | 149.1 × 149.1 × 30.8 (10 mm plate + 20.83 mm half torus; locating groove) | yes, 0.45 mm to spare per side |
+| `pour_frame_mm.stl` | 145.6 × 145.6 × 32.4 (3 mm wall, 0.4 mm bottom chamfers) | yes, 2.2 mm to spare per side |
 
-Defaults are: plate margin 7 mm from the torus edge to the plate edge, plate 4 mm, keys of radius 8 mm with a 3 mm edge gap (centres at ±58.5 mm, 12.2 mm clear of the torus), clearance 0.3 mm, wall 3 mm, and silicone cover 10 mm above the torus. The frame's inner size is plate + 2 × clearance; its height is plate + half torus + cover. Master B's plate is key radius + 2 mm = 10 mm, so the 8 mm sockets keep a floor; everything above the floor is the same as on A.
+With **Locating groove** turned off you get the original butt-jointed layout: masters 139.0 × 139.0 mm, frame 145.6 × 145.6 × 34.8 mm standing on the table around the plate.
+
+Defaults are: plate margin 7 mm from the torus edge to the plate edge, plate 4 mm, keys of radius 8 mm with a 3 mm edge gap (centres at ±58.5 mm, 12.2 mm clear of the torus), clearance 0.3 mm, wall 3 mm, and silicone cover 10 mm above the torus. The frame's inner size is the pour floor (torus + 2 × margin) + 2 × clearance; its height is groove depth + half torus + cover (without the groove: plate + half torus + cover). With the default locating groove the plate extends past the frame by 0.25 mm clearance + 1.5 mm lip (see below). Master B's plate is key radius + 2 mm = 10 mm, so the 8 mm sockets keep a floor; everything above the floor is the same as on A.
 
 **Why a one-piece frame around the plate:** the 125 mm torus plus a 7 mm silicone wall plus 0.3 mm clearance and a 3 mm wall comes to 145.6 mm, so a one-piece frame fits. Panels or a frame sitting on the plate aren't needed at this size. The largest margin that still fits is about 9 mm (149.6 mm frame). Bigger margins need a printer with a larger bed; the app flags parts that don't fit. A **"ledge" option** gives the same footprint: the plate gets a raised pour floor and a 3.3 mm perimeter ledge, and the frame drops over the floor and rests on the ledge. It self-locates, and silicone has to climb a 2 mm step before it can leak. With frame and plate both 145.6 mm, there is less room on the bed. Silicone per half is about 442 cm³ (about 0.49 kg at 1.1 g/cm³).
 
+### Locating groove (default on)
+
+Sidebar ▸ **Locating groove for the frame wall** (on by default) cuts a shallow square channel into the top of **both** bases, A and B, that the bottom edge of the pour-frame wall drops into. The wall self-locates, and the seam becomes a labyrinth (down, across under the wall, up) instead of a butt joint, so silicone is far less likely to find a way out. You still hot-glue the **outside** seam: run the bead where the wall comes out of the groove, on the outer lip.
+
+```
+   cavity (silicone) │  frame wall │
+ ────────────────────┤   3.0 mm    ├── lip 1.5 ──┐   ← z = 0: pour floor / plate top
+                     │░           ░│             │
+                     └┐───────────┌┘  groove     │   1.6 mm deep, 3.5 mm wide
+                      └───────────┘              │   (0.25 mm clearance each side)
+ ────────────────────────────────────────────────┘   plate (2.4 mm left under the groove on A)
+```
+
+| Default (mm) | Value | Why |
+|---|---|---|
+| Groove depth | **1.6** | 8 layers at 0.2 mm; deep enough to locate and seal, leaves 2.4 mm of the 4 mm plate under it on A (7.4+ mm on B). The plate is thickened automatically to keep ≥ 2 mm under the groove (e.g. the ledge variant). |
+| Groove clearance | **0.25 per side** | channel = wall + 0.5 = 3.5 mm. On an Ender-2 (0.4 mm nozzle) a 0.2–0.3 mm gap slides in by hand without slop. |
+| Outer lip | **1.5** | plate outside the groove (its outer wall, ~4 perimeters) and the land for the glue bead. |
+| Wall bottom chamfer | **0.4 × 45°** on both bottom edges | the only change to the wall: relief for first-layer squish ("elephant foot") so the wall seats fully in a 0.25 mm-clearance groove. It also leaves a small V at the outside seam that the hot glue fills. |
+
+Placement: the groove's inner edge is at 69.55 mm from the centre (cavity wall 69.8 mm − 0.25), **3.0 mm outside the key edges** and 7 mm outside the torus, so it never touches the cavity features; the frame's inner face and the silicone side wall are unchanged. The **frame keeps its 145.6 mm footprint**; it is 2 mm shorter (32.4 mm) because it now stands in the 1.6 mm groove instead of on the table next to a 4 mm plate (pour depth is still 30.8 mm). A frame you already printed from the old layout fits the new groove too (it is just 2 mm taller; with no chamfer it may need the first layer's squish scraped off). The plate grows to 149.1 mm (frame 145.6 + 2 × 0.25 clearance + 2 × 1.5 lip), which still fits the 150 mm bed: print it with no skirt/brim.
+
+**Ledge variant + groove:** the ledge is lowered by the groove depth and gets the same 1.5 mm outer lip, so the island's step is the groove's inner wall (inner clearance = the frame clearance, 0.3 mm). Master A's plate is thickened to 5.6 mm (2 mm ledge + 1.6 mm groove + 2 mm floor). Same 149.1 mm plates and 145.6 mm frame (34.4 mm tall).
+
+![Groove detail](media/mold_groove_detail.png)
+
 ### Print
 
-1. Print every part **as exported** (flat side down, in mm, 100 % scale). Turn off the brim and skirt, or keep the skirt within 2 mm: the frame leaves only 2.2 mm per side on a 150 mm bed. Masters A and B need no supports. The half torus faces upwards everywhere, and the groove ceilings near the plate are short 3.2 mm bridges.
+1. Print every part **as exported** (flat side down, in mm, 100 % scale). Turn off the brim and skirt: the grooved 149.1 mm plates leave only 0.45 mm per side on a 150 mm bed (the frame 2.2 mm). Masters A and B need no supports. The half torus faces upwards everywhere, and the groove ceilings near the plate are short 3.2 mm bridges.
 2. Use 0.12–0.16 mm layers for the masters (smoother groove walls) and 3+ perimeters. The frame is fine at 0.2–0.28 mm.
 3. Lightly sand the master: 400 → 800 grit wet, keeping the groove edges crisp. For a glossy silicone surface, seal it with a thin brushed coat (XTC-3D, or primer plus clear coat). Check that the sealer is compatible with platinum silicone, or use tin-cure silicone.
 
 ### Pour
 
-1. Set the master on a flat sheet (glass or melamine), drop the frame over it and seal the frame's outside bottom joint with hot glue or sulphur-free clay. Silicone will find a 0.3 mm gap.
+1. Drop the frame's wall into the locating groove on the base (it should slide in by hand and sit flat all round), then run a continuous hot-glue bead along the **outside** seam, wall to lip, filling the corners. Keep glue off the inside face. Silicone will find a 0.3 mm gap. (Groove off: set the master on a flat sheet, drop the frame over it and seal the frame's outside bottom joint.) Hot glue peels off PLA after the cure, or lift it with a putty knife.
 2. Spray or brush mold release (e.g. Ease Release 200) on the master and the frame, and let it flash off.
 3. Mix about 450 cm³ of silicone (Shore 20–30A works well for this lattice) and degas it if you can. Pour in a thin stream into one **corner**, not onto the torus, and let it rise over the torus and keys. Fill to the top of the frame: that is 30.8 mm of silicone above the floor (20.83 mm torus + 10 mm cover).
 4. Cure, de-mold, and repeat on master B. Put a dab of release on silicone A's dimples before casting into the pair.
@@ -306,7 +334,7 @@ pytest -q          # geometry math, boolean mesh width/depth/watertight, B-rep c
 REFERENCE_PHOTO=/path/to/photo.png python capture.py
 # writes media/preview.png, front_view.png, closeup_rim_vs_hole.png, zoom_groove_walls.png,
 #        mesh_wireframe_rim.png (actual STL triangles), preview_mirror.png, screenshot.png,
-#        snippet.png, mold_preview.png, mold_in_frame.png, mold_master_B.png, mold_section.png,
+#        snippet.png, mold_preview.png, mold_in_frame.png, mold_master_B.png, mold_section.png, mold_groove_detail.png,
 #        moai_head_scan_{preview,front,side,three_quarter}.png,
 #        moai_preview.png, moai_front.png, moai_side.png, moai_three_quarter.png,
 #        and compare_photo.png (only when REFERENCE_PHOTO is set)
