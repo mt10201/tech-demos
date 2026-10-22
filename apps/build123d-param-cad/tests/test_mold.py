@@ -243,3 +243,15 @@ def test_hole_is_sealed_by_floor(parts):
 
     probe = mf.Manifold.cylinder(1.0, 1.0, 1.0, 16).translate((0.0, 0.0, -2.0))
     assert (parts["master_A"] ^ probe).volume() == pytest.approx(math.pi, rel=0.05)
+
+
+def test_fuse_valid_returns_one_valid_solid():
+    from build123d import Box, Pos
+
+    from mold import _fuse_valid
+
+    a = Box(10, 10, 2)
+    b = Pos(0, 0, 2) * Box(4, 4, 4)
+    s = _fuse_valid(a, b)
+    assert s.is_valid and len(s.solids()) == 1
+    assert abs(s.volume - (200 + 16 * 3)) < 1e-6

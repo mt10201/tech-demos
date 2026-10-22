@@ -363,6 +363,42 @@ def _mesh_volumes(t: TorusParams, m: MoldParams) -> Tuple[float, float]:
     return p["master_A"].volume(), p["master_B"].volume()
 
 
+FUSE_FUZZY_MM = (1e-3, 1e-2)
+
+
+def _fuse_valid(base, *tools):
+    """``base.fuse(*tools).clean()``, retried with a fuzzy tolerance if the exact
+    fuse is invalid or not one solid.
+
+    At some torus sizes (e.g. 100 mm OD) a groove edge of the finished torus
+    lands on the z = -OVERLAP cut plane, and OpenCascade's exact fuse with the
+    plate comes back invalid (BRepCheck); a 1e-3 mm fuzzy fuse is valid."""
+    from build123d import Shape
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Fuse
+    from OCP.collections import List_TopoDS_Shape
+
+    out = base.fuse(*tools).clean()
+    if out.is_valid and len(out.solids()) == 1:
+        return out
+    for fz in FUSE_FUZZY_MM:
+        op = BRepAlgoAPI_Fuse()
+        a, b = List_TopoDS_Shape(), List_TopoDS_Shape()
+        a.Append(base.wrapped)
+        for x in tools:
+            b.Append(x.wrapped)
+        op.SetArguments(a)
+        op.SetTools(b)
+        op.SetFuzzyValue(fz)
+        op.SetRunParallel(True)
+        op.Build()
+        if not op.IsDone():
+            continue
+        res = Shape.cast(op.Shape()).clean()
+        if res.is_valid and len(res.solids()) == 1:
+            return res.solids()[0]
+    return out
+
+
 def master_step_bytes(t: TorusParams, m: MoldParams, progress=None, torus_solid_mm=None) -> Dict[str, bytes]:
     """Exact B-rep masters A and B as mm STEP files.
 
@@ -421,15 +457,15 @@ def master_step_bytes(t: TorusParams, m: MoldParams, progress=None, torus_solid_
     bumps = [(Pos(x, y, 0) * Sphere(m.key_radius)) & slab(-OVERLAP, m.key_radius + 1, big) for x, y in pos]
     sockets = [Pos(x, y, 0) * Sphere(m.key_radius) for x, y in pos]
     tb = plate_thickness_b(m)
-    a = plate(plate_thickness_a(m)).fuse(top, *bumps).clean()
+    a = _fuse_valid(plate(plate_thickness_a(m)), top, *bumps)
     if halves_identical(t)[0]:
         # The turned-over bottom half equals the top half (checked on the mesh),
         # and OpenCascade fuses the top half reliably, but it silently dropped the
         # plate when fusing it with the bottom half of the finished torus.
-        b = plate(tb).fuse(top).clean().cut(*sockets)
+        b = _fuse_valid(plate(tb), top).cut(*sockets)
         flip = False
     else:
-        b = plate(tb, up=True).fuse(bottom).clean().cut(*sockets)
+        b = _fuse_valid(plate(tb, up=True), bottom).cut(*sockets)
         flip = True
     want_a, want_b = _mesh_volumes(t, m)
     for name, shape, want in (("A", a, want_a), ("B", b, want_b)):
