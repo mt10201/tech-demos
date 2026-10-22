@@ -32,3 +32,19 @@ Processing script: `scripts/build_moai_head_scan.py`.
 Suggested credit line on products / listings:
 
 > Moai head after "Quarry Moai - Rapa Nui/Easter Island" by Ryan Shackleton (sketchfab.com), CC BY 4.0, modified.
+
+---
+
+# Attribution: hayes_bust_npg_cc0.ply (Photo → master sample)
+
+**"Rutherford B. Hayes"**, plaster bust by **Olin Levi Warner**, 1876 (27.3 × 24.8 × 12.7 cm),
+National Portrait Gallery, Smithsonian Institution, object NPG.76.27
+(record `edanmdm:npg_NPG.76.27`, https://npg.si.edu/object/npg_NPG.76.27).
+3D model from Smithsonian 3D (Smithsonian Open Access), usage: **CC0** (public domain dedication, as listed on the Smithsonian 3D / Open Access record,
+checked 2026-10-22). No attribution is
+legally required; the credit above is a courtesy. Commercial use and derivatives (e.g. selling castings)
+are permitted. The Smithsonian name and logo are not licensed and must not be used to imply endorsement.
+
+Changes: the 150k-face GLB (`rutherford-b-150k-4096.glb`) was loaded without its texture, rotated to +Z up
+(mm, original size) and decimated with manifold3d to ~37k triangles (watertight, Euler 2). In the app's
+Photo → master mode it is damaged on purpose ("simulate AI / scan defects") and rebuilt by `scan_repair.py`.

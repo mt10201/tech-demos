@@ -274,7 +274,132 @@ def render(t: TorusParams, m: MoldParams) -> None:
                                    use_container_width=True, key=f"dl_{fname}")
         st.caption("Finished grooved torus (24 sequential OpenCascade cuts) split at z = 0 and fused "
                    "with the plate and keys. Opens in SOLIDWORKS as one solid per part.")
+    clamp_section(t, m)
     st.markdown(
         f"**Pour depth:** {half_height_mm(t) + m.cover:.1f} mm of silicone above the pour floor "
         f"({half_height_mm(t):.2f} mm half torus + {m.cover:.1f} mm cover): fill to the top of the frame."
     )
+
+
+# ---- optional threaded wall clamps (bd_warehouse) -----------------------------
+
+CLAMP = "#c0703a"   # orange PLA clamps
+NUT = "#e0b040"
+SCREW = "#3f7fbf"
+
+
+def clamp_sidebar():
+    """Sidebar controls; returns ClampParams or None when the clamps are off."""
+    from mold_clamp import ClampParams
+
+    st.sidebar.header("Frame clamps (optional)")
+    on = st.sidebar.checkbox(
+        "Threaded wall clamps (bd_warehouse)", value=False,
+        help="Printed C-clamps with ISO metric threads (bd_warehouse IsoThread + manufacturing "
+             "compensation): the jaw hooks under the plate, the thumbscrew presses the frame wall down "
+             "into the locating groove so the seam seals and the frame can't float. The masters and "
+             "the frame are unchanged.")
+    if not on:
+        return None
+    size = st.sidebar.selectbox("Thread", [6, 8, 10, 12], index=2, format_func=lambda d: f"M{d} coarse")
+    comp = st.sidebar.slider("Thread compensation (FDM)", 0.0, 0.4, 0.15, 0.05,
+                             help="bd_warehouse manufacturing_compensation: the screw's thread shrinks "
+                                  "and the nut's grows by this much. 0.15 mm suits a 0.4 mm nozzle; 0 = "
+                                  "nominal ISO (no clearance, won't turn when printed).")
+    count = st.sidebar.radio("Clamps", [4, 8], horizontal=True,
+                             help="4 = one per side, 8 = two per side.")
+    return ClampParams(size=size, compensation=comp, count=count)
+
+
+@st.cache_data(show_spinner="Threading clamps with bd_warehouse…", max_entries=4)
+def _clamp_preview(t: TorusParams, m: MoldParams, c):
+    import mold_clamp as mc
+
+    p = mc.parts(t, m, c)
+    single = {k: mc.to_trimesh(mc.print_pose(k, v), tol=0.08) for k, v in p.items()}
+    asm = {"clamp": [], "nut": [], "thumbscrew": []}
+    for name, shape in mc.assembly(t, m, c, "A", p):
+        asm[name].append(mc.to_trimesh(shape, tol=0.08))
+    merged = {}
+    for k, lst in asm.items():
+        off, V, F = 0, [], []
+        for tm in lst:
+            V.append(tm.vertices); F.append(tm.faces + off); off += len(tm.vertices)
+        merged[k] = (np.vstack(V), np.vstack(F))
+    stats = {k: dict(watertight=bool(tm.is_watertight), bodies=len(tm.split(only_watertight=False)),
+                     ext=tuple(float(x) for x in tm.extents), vol=float(v.volume))
+             for (k, tm), v in zip(single.items(), p.values())}
+    return {k: (tm.vertices, tm.faces) for k, tm in single.items()}, merged, stats
+
+
+@st.cache_data(show_spinner="Exporting clamp files…", max_entries=2)
+def _clamp_files(t: TorusParams, m: MoldParams, c):
+    import mold_clamp as mc
+
+    p = mc.parts(t, m, c)
+    return {k: (mc.stl_bytes(mc.print_pose(k, v)), mc.step_bytes(mc.print_pose(k, v))) for k, v in p.items()}
+
+
+def clamp_section(t: TorusParams, m: MoldParams) -> None:
+    import mold_clamp as mc
+
+    c = clamp_sidebar()
+    if c is None:
+        return
+    st.subheader("Threaded wall clamps — bd_warehouse ISO threads")
+    try:
+        mc.validate_clamp(t, m, c)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    L = mc.layout(t, m, c)
+    single, merged, stats = _clamp_preview(t, m, c)
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Screw travel", f"{L['travel']:.1f} mm",
+              help=f"Frame top {L['top_a']:.1f} mm (on A) / {L['top_b']:.1f} mm (on B) above the table; "
+                   "one clamp fits both masters.")
+    k2.metric("Clamp height", f"{L['height']:.1f} mm")
+    k3.metric("Thread", f"M{c.size}×{L['pitch']:g}", help=f"{c.compensation:.2f} mm compensation per part")
+    k4.metric("Parts", f"{c.count} × (clamp + nut + screw)")
+    a, b = st.columns([3, 2], gap="medium")
+    with a:
+        meshes, _ = _preview(t, m)
+        va, fa = meshes["master_A"]
+        vf, ff = meshes["pour_frame"]
+        traces = [_mesh(va, fa, PLATE), _mesh(vf, ff, FRAME)]
+        for k, col in (("clamp", CLAMP), ("nut", NUT), ("thumbscrew", SCREW)):
+            traces.append(_mesh(*merged[k], col, k))
+        fig = go.Figure(traces)
+        fig.update_layout(scene=_scene(dict(x=0.45, y=-1.5, z=1.0)), height=480,
+                          margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("Master A in its frame with the clamps screwed down onto the wall top "
+                   "(the plate rests on the jaws; all clamps identical, so it stays level).")
+    with b:
+        fig = go.Figure()
+        x = 0.0
+        for k, col in (("clamp", CLAMP), ("nut", NUT), ("thumbscrew", SCREW)):
+            V, F = single[k]
+            V = V + np.array([x - V[:, 0].min(), -V[:, 1].mean(), 0])
+            fig.add_trace(_mesh(V, F, col, k))
+            x = V[:, 0].max() + 8
+        fig.update_layout(scene=_scene(dict(x=0.2, y=-1.6, z=0.9)), height=300,
+                          margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption("Print poses: clamp on its side (teardrop hole, no supports), nut flat, screw head down.")
+        rows = [{"part": k, "X×Y×Z mm": " × ".join(f"{v:.1f}" for v in s["ext"]), "cm³": round(s["vol"] / 1000, 1),
+                 "watertight": s["watertight"], "bodies": s["bodies"]} for k, s in stats.items()]
+        st.dataframe(rows, hide_index=True, use_container_width=True)
+    if st.button("Prepare clamp STL + STEP files", use_container_width=True):
+        st.session_state["clamp_files"] = ((t, m, c), _clamp_files(t, m, c))
+    got = st.session_state.get("clamp_files")
+    if got and got[0] == (t, m, c):
+        cols = st.columns(3)
+        for col, (k, (stl, step)) in zip(cols, got[1].items()):
+            col.download_button(f"{k}_M{c.size}.stl ({len(stl) / 1e6:.1f} MB)", data=stl,
+                                file_name=f"clamp_{k}_M{c.size}_mm.stl", mime="model/stl",
+                                use_container_width=True, key=f"dl_clamp_{k}_stl")
+            col.download_button(f"{k}_M{c.size}.step", data=step, file_name=f"clamp_{k}_M{c.size}_mm.step",
+                                mime="application/step", use_container_width=True, key=f"dl_clamp_{k}_step")
+    st.caption(f"Print {c.count} of each. The nut slot also takes a steel M{c.size} DIN 934 nut. "
+               "Screw down finger-tight after the frame is seated in the groove, then pour.")

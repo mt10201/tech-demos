@@ -306,6 +306,80 @@ At 152.4 mm the statue is **57.9 × 48.9 × 152.4 mm** (X × Y × Z). It fits th
 - Fingers and ear rims are ~1–1.5 mm. Print with a 0.4 mm nozzle and don't scale below ~100 mm.
 - Turn on the plinth for better bed grip.
 
+## Frame clamps (bd_warehouse threads, optional Mold master accessory)
+
+![clamps](media/mold_clamps_assembly.png)
+
+In **Mold master**, tick **Frame clamps (optional) ▸ Threaded wall clamps (bd_warehouse)**. You get printable
+C-clamps that hook under the plate and push the pour-frame wall down into the locating groove, so the seam
+seals with less hot glue and the frame can't float. **The masters are unchanged**: the clamps are separate parts.
+They need the wall to stand on the plate (locating groove on, or the "ledge" frame style). The app shows an
+error otherwise.
+
+- Code: [`mold_clamp.py`](mold_clamp.py). Threads are `bd_warehouse.thread.IsoThread` (bd_warehouse 0.4.0,
+  Apache-2.0, pure Python), ISO coarse M6/M8/M10/M12 (default **M10×1.5**). They use `manufacturing_compensation`
+  (default **0.15 mm**, slider 0–0.4): the screw thread shrinks inward and the nut thread grows outward. At the
+  default 0.15 mm the pair has a backlash window (tested). At 0 the profiles always overlap, so printed parts bind.
+- Parts (4 or 8 sets): **clamp body** (lie it on its side; the teardrop hole needs no supports), **hex nut**
+  (fits the clamp's through-slot, or use a steel DIN 934 M10 nut) and **thumbscrew** (print it head down; the
+  head has a 45° bottom chamfer).
+- One clamp fits both masters. With the defaults: screw travel 10 mm covers frame tops A and B, clamp
+  height 64.8 mm, screw tip ≤ wall thickness.
+- Checks (tests/test_clamp.py): every part at M6–M12 is a valid single solid with a watertight STL (Euler
+  clamp −4 / nut 0 / screw 2, through holes are expected: these are not mold masters). Every part fits the
+  Ender 2. manifold3d interference volume is 0 between clamp and master, clamp and frame, screw and clamp,
+  nut and clamp, and screw and frame (A and B).
+- Download: STL (mm) + STEP for each part (button *Prepare clamp STL + STEP files*).
+- **Not added from bd_warehouse:** gears (no geared part in this project), pipes/flanges/bearings/fasteners
+  and a threaded pour spout (a thread in the pour path makes a hole in the silicone).
+
+## Photo → master (any AI / scan mesh → printable mold master)
+
+![photo to master](media/photo_master.png)
+
+The **Photo → master** mode takes the output of image-to-3D tools (TRELLIS.2, Hunyuan3D, Meshy, UniForge3D…)
+or a phone scan and makes a mold master. It orients and scales to mm, patches holes, drops debris, fills
+bubbles, closes thin slots, plugs tunnels (genus 0), cuts a flat base, then checks for a **watertight single
+shell, Euler 2, fits the Ender 2**. It runs on CPU with the existing requirements
+([`scan_repair.py`](scan_repair.py)). The bundled sample is the **CC0** Smithsonian NPG plaster bust of
+Rutherford B. Hayes (Olin Levi Warner, 1876, [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md)). *Simulate AI
+/ scan defects* punches holes and adds flipped and duplicate faces, debris and a bubble, so you can watch the repair.
+
+```bash
+python scripts/photo_to_master.py model.glb master.stl --height 120            # glTF assumed +Y up (--up to change)
+python scripts/photo_to_master.py assets/hayes_bust_npg_cc0.ply /tmp/hayes.stl --damage-demo --voxel 0.6
+# -> 4 holes patched, 3 debris pieces dropped, 130,624 triangles, 98.3 × 58.8 × 120 mm, 130.6 cm³,
+#    watertight, Euler 2, fits Ender 2 — 4.5 s on 8 CPUs (0.4 mm voxels: ~12 s)
+```
+
+**UniForge3D was not added.** Its code is MIT, but the weights are **CC BY-NC 4.0** (from VGGT-1B), its
+background remover (RMBG-2.0) and nvdiffrast are non-commercial, and it needs CUDA (torch cu124, flash-attn).
+That rules it out for selling castings and for this CPU box. See [`docs/photo_to_3d.md`](docs/photo_to_3d.md),
+which also covers the MIT-licensed TRELLIS.2 (≥ 24 GB GPU) as a commercial-safe generator to feed this mode.
+
+## build123d dev features: fillet error reporting (PR #1525) and `filter_by_value` (PR #1524)
+
+Both are only on build123d `dev` (after 0.13.0), so **the app stays on the released build123d** (no git pin).
+[`b3d_compat.py`](b3d_compat.py) is a small shim:
+
+- `filter_by_value(shapes, Axis.Z / SortBy.LENGTH / SortBy.RADIUS / …, value, tolerance)` uses the native
+  `ShapeList.filter_by_value` when it exists, otherwise the same semantics (#1524).
+- `faulty_fillet_edges(part, edges, r)` / `fillet_or_explain(...)` name the edges a fillet fails on. On dev they
+  re-raise the native #1525 message ("on 2 of 8 edges (no starting solution: [1] at (1, 0, 4) …)"). On 0.13
+  they search edge by edge.
+
+```bash
+python scripts/fillet_debug.py                              # build123d 0.13.0: generic error + per-edge search
+python -m venv /tmp/b3d-dev && /tmp/b3d-dev/bin/pip install "git+https://github.com/gumyr/build123d@dev"
+/tmp/b3d-dev/bin/python scripts/fillet_debug.py             # dev: native "on 2 of 8 edges (…)" message
+```
+
+On 0.13.0 the native error only says *"Failed creating a fillet with radius of 2.5, try a smaller value…"*.
+On dev it names 2 of the 8 edges. The search lists 4 edges to drop (#1, #5, #6, #7), after which the other 4
+fillet at r = 2.5. **Once build123d ≥ 0.14 is on PyPI:** bump `requirements.txt` to `build123d>=0.14`,
+replace `b3d_compat.filter_by_value(x, …)` with `x.filter_by_value(…)`, rely on the native fillet message,
+then delete `b3d_compat.py` and its test.
+
 ## Run
 
 macOS / Linux:
@@ -338,6 +412,9 @@ REFERENCE_PHOTO=/path/to/photo.png python capture.py
 #        moai_head_scan_{preview,front,side,three_quarter}.png,
 #        moai_preview.png, moai_front.png, moai_side.png, moai_three_quarter.png,
 #        and compare_photo.png (only when REFERENCE_PHOTO is set)
+python capture.py new-libs
+# writes media/mold_clamps{,_assembly,_parts}.png, photo_master{,_input,_rebuilt}.png and the video
+#        media/new_libs_demo.webm (clamps on, then Photo → master)
 ```
 
 ## Make your own shapes
