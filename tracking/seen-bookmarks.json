@@ -7,14 +7,6 @@
       "date": "2026-10-21",
       "source": "new bookmark",
       "slug": "kronos-candle-forecast"
-    },
-    {
-      "id": "2102413376148095032",
-      "title": "hmmlearn: Hidden Markov Model market-regime detector for allocation (HMM + regime-switching)",
-      "url": "https://x.com/0xTrackmind/status/2102413376148095032",
-      "date": "2026-10-22",
-      "source": "older bookmark",
-      "slug": "hmm-regime-detector"
     }
   ],
   "approved": [
@@ -38,6 +30,14 @@
       "url": "https://x.com/gregisenberg/status/2100229768385822812",
       "date": "2026-10-19",
       "slug": "build123d-param-cad"
+    },
+    {
+      "id": "2102413376148095032",
+      "title": "hmmlearn: Hidden Markov Model market-regime detector for allocation (HMM + regime-switching)",
+      "url": "https://x.com/0xTrackmind/status/2102413376148095032",
+      "date": "2026-10-22",
+      "source": "older bookmark",
+      "slug": "hmm-regime-detector"
     }
   ],
   "skipped": [
