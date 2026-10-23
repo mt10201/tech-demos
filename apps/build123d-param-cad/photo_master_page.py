@@ -15,6 +15,8 @@ import scan_repair as sr
 HERE = os.path.dirname(os.path.abspath(__file__))
 SAMPLE = os.path.join(HERE, "assets", "hayes_bust_npg_cc0.ply")
 SAMPLE_NAME = "Sample: Rutherford B. Hayes plaster bust (Smithsonian NPG, CC0)"
+MADONNA_SAMPLE = os.path.join(HERE, "assets", "black_madonna_preview.ply")
+MADONNA_NAME = "Sample: Black Madonna de Sous-Terre (Chartres Sedes Sapientiae, CC0)"
 UPLOAD = "Upload a mesh (STL / OBJ / PLY / GLB)"
 BG = "#d9c7a3"
 RAW = "#b08060"
@@ -35,15 +37,16 @@ class PhotoParams:
 
 def sidebar():
     st.sidebar.header("Photo → master (mm)")
-    source = st.sidebar.radio("Mesh", [SAMPLE_NAME, UPLOAD], index=0)
+    source = st.sidebar.radio("Mesh", [SAMPLE_NAME, MADONNA_NAME, UPLOAD], index=0)
     upload = None
     if source == UPLOAD:
         upload = st.sidebar.file_uploader("Mesh file", type=["stl", "obj", "ply", "glb", "gltf", "off"],
                                           help="E.g. the GLB from an image-to-3D tool or a phone scan.")
-    damage = st.sidebar.checkbox("Simulate AI / scan defects", value=source == SAMPLE_NAME,
+    damage = st.sidebar.checkbox("Simulate AI / scan defects", value=source in (SAMPLE_NAME, MADONNA_NAME),
                                  help="Punch 4 holes, flip 5 % of faces, duplicate 2 %, add floating debris "
                                       "and an internal bubble, i.e. what typical image-to-3D output looks like.")
-    h = st.sidebar.slider("Master height (mm)", 30.0, 190.0, 120.0, 1.0)
+    default_h = 101.6 if source == MADONNA_NAME else 120.0
+    h = st.sidebar.slider("Master height (mm)", 30.0, 190.0, float(default_h), 0.2)
     up_default = "+y" if (upload is not None and upload.name.lower().endswith((".glb", ".gltf"))) else "+z"
     up = st.sidebar.selectbox("Up axis of the input", list(sr.AXES), index=list(sr.AXES).index(up_default))
     vox = st.sidebar.select_slider("Voxel size (mm)", [0.3, 0.4, 0.5, 0.6, 0.8, 1.0], value=0.6,
@@ -51,15 +54,15 @@ def sidebar():
     close = st.sidebar.slider("Close gaps narrower than (mm)", 0.4, 3.0, 0.8, 0.1,
                               help="Morphological closing radius: slots narrower than ~2× this are filled, "
                                    "so the silicone can't make thin fins.")
-    base = st.sidebar.slider("Flat base cut (mm)", 0.5, 10.0, 2.0, 0.5)
-    name = SAMPLE_NAME if source == SAMPLE_NAME else (upload.name if upload is not None else "")
+    base = st.sidebar.slider("Flat base cut (mm)", 0.0, 10.0, 0.5 if source == MADONNA_NAME else 2.0, 0.5)
+    name = source if source in (SAMPLE_NAME, MADONNA_NAME) else (upload.name if upload is not None else "")
     return PhotoParams(name, damage, h, up, vox, close, base), upload
 
 
 @st.cache_data(show_spinner="Loading mesh…", max_entries=4)
 def _load(name: str, data: bytes | None):
     if data is None:
-        return sr.load_mesh(SAMPLE)
+        return sr.load_mesh(MADONNA_SAMPLE if name == MADONNA_NAME else SAMPLE)
     ext = os.path.splitext(name)[1] or ".stl"
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
         f.write(data)

@@ -45,11 +45,12 @@ MM = MM_PER_IN
 
 
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Photo → master"], horizontal=True,
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai. "
+                         "Black Madonna: a 4 in (101.6 mm) Chartres Black Madonna de Sous-Terre mold master. "
                          "Photo → master: repair any photo-to-3D or scan mesh into a printable mold master.")
-if mode not in ("Moai statue", "Photo → master"):
+if mode not in ("Moai statue", "Black Madonna", "Photo → master"):
     st.title("Rodin coil torus — groove lattice")
     st.caption(
         "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
@@ -62,6 +63,12 @@ if mode == "Moai statue":
     import moai_page
 
     moai_page.render(moai_page.sidebar())
+    st.stop()
+
+if mode == "Black Madonna":
+    import madonna_page
+
+    madonna_page.render(madonna_page.sidebar())
     st.stop()
 
 if mode == "Photo → master":

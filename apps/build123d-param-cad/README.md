@@ -306,6 +306,41 @@ At 152.4 mm the statue is **57.9 × 48.9 × 152.4 mm** (X × Y × Z). It fits th
 - Fingers and ear rims are ~1–1.5 mm. Print with a 0.4 mm nozzle and don't scale below ~100 mm.
 - Turn on the plinth for better bed grip.
 
+## Black Madonna statue (Chartres *Notre-Dame de Sous-Terre* mold master)
+
+![black madonna](media/black_madonna_preview.png)
+
+| Front | 3/4 | Side | Back |
+|---|---|---|---|
+| ![](media/black_madonna_front.png) | ![](media/black_madonna_three_quarter.png) | ![](media/black_madonna_side.png) | ![](media/black_madonna_back.png) |
+
+![black madonna compare](media/black_madonna_compare.png)
+
+Sidebar ▸ **Mode ▸ Black Madonna** builds a 4-inch (**101.6 mm** default, adjustable 40–200 mm slider) silicone-mold
+master of the **Black Madonna de Sous-Terre** (*Notre-Dame de Sous-Terre* / *Virgo Paritura*), the 11th/12th-century
+Romanesque *Sedes Sapientiae* (Throne of Wisdom) from the crypt of Chartres Cathedral, modelled on multi-angle
+orthographic studio views of the Sacred Source `#BMT` statue (`madonna.py`, `madonna_page.py`,
+`scripts/build_black_madonna.py`).
+
+- **Two model options in the sidebar:**
+  - **Photo-calibrated master: Chartres Madonna de Sous-Terre** (default): loads the prebuilt high-resolution mold
+    master (`assets/black_madonna_101.6mm.stl`, 68,246 triangles, 3.41 MB) and decimated 4-view preview
+    (`assets/black_madonna_preview.ply`, 33,636 triangles), scaled to the height slider in mm.
+  - **Custom parametric SDF (live rebuild)**: exposes sliders for photo-relief depth scale, Romanesque crown peak
+    height, front throne-post trapezoidal flare, and an optional extra sub-plinth.
+  - Also available as a sample preset (`Sample: Black Madonna de Sous-Terre (Chartres Sedes Sapientiae, CC0)`) in
+    **Photo → master** mode.
+- **License:** **CC0 1.0 Public Domain** (`assets/ATTRIBUTION.md`). Existing Brussels / Scan-The-World
+  *Sedes Sapientiae* 3D scans are non-commercial (`CC BY-NC` / `CC BY-NC-SA`) and were excluded so castings from
+  this master can be sold commercially without restriction.
+- **Mold-master checks (`tests/test_madonna.py`):**
+  - Default size: **41.93 × 45.92 × 101.60 mm** (1.65" × 1.81" × 4.00"), volume **86.00 cm³**, fitting easily upright
+    on the **150 × 150 × 200 mm** Creality Ender-2 bed.
+  - **Watertight (`is_watertight == True`), single shell (`body_count == 1`), and genus 0 (`euler_number == 2`)**:
+    zero through-holes or silicone-trapping tunnels (crown peaks, blessing hand, and throne posts are joined by
+    continuous solid relief webs).
+  - **Flat base on `z = 0`** (~34 × 40 mm footprint) for support-free bed adhesion and a clean seal against a mold board.
+
 ## Frame clamps (bd_warehouse threads, optional Mold master accessory)
 
 ![clamps](media/mold_clamps_assembly.png)

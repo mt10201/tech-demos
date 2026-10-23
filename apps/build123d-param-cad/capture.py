@@ -383,11 +383,52 @@ def new_libs():
             proc.kill()
 
 
+
+
+def black_madonna_only():
+    """Capture the Black Madonna mode in the Streamlit app."""
+    ensure_browsers()
+    import urllib.request
+    from playwright.sync_api import sync_playwright
+
+    proc = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"), "--server.port",
+                             str(PORT), "--server.headless", "true", "--browser.gatherUsageStats", "false"],
+                            cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        for _ in range(90):
+            try:
+                urllib.request.urlopen(URL, timeout=1)
+                break
+            except Exception:
+                time.sleep(1)
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1600, "height": 1000})
+            page.goto(URL, wait_until="networkidle", timeout=120_000)
+            page.wait_for_timeout(8000)
+            page.get_by_text("Black Madonna", exact=True).first.click()
+            page.wait_for_timeout(15_000)
+            page.evaluate("""() => { window.scrollTo(0, 0);
+                document.querySelectorAll('*').forEach(e => { if (e.scrollTop > 0) e.scrollTop = 0; }); }""")
+            page.wait_for_timeout(1500)
+            page.screenshot(path=str(MEDIA / "black_madonna_preview.png"), full_page=False)
+            print(f"wrote {MEDIA / 'black_madonna_preview.png'}")
+            browser.close()
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["moai-scan"]:
         moai_scan_only()
     elif sys.argv[1:] == ["new-libs"]:
         new_libs()
+    elif sys.argv[1:] == ["black-madonna"]:
+        black_madonna_only()
     else:
         main()
         mesh_wireframe(MEDIA / "mesh_wireframe_rim.png")
