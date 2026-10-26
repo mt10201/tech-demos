@@ -47,17 +47,26 @@ class FunnelParams:
 
 @dataclass(frozen=True)
 class HornParams:
-    R0: float = 65.0            # helix radius at the mouth
-    turns: float = 3.0
-    height: float = 200.0       # helix rise (constant pitch = height / turns)
+    """Kudu-horn whorl pipe, flow direction = +z in print coordinates (mouth on the bed at z = 0).
+
+    mouth -> straight axial lead-in (contains the egg socket) -> tangent-continuous bend -> golden
+    tapered right-hand helix (R and egg scale by 1/phi per turn) -> bend back to axial -> run-out tip."""
+    R0: float = 52.0            # helix radius at the start of the helical portion
+    turns: float = 1.5          # helical portion only (owner range 1.25-1.75)
+    height: float = 160.0       # rise of the helical portion (pitch = height / turns)
+    lead_in: float = 30.0       # straight axial egg tube at the mouth (owner range 25-40)
+    bend_r: float = 32.0        # centre-line radius of the lead-in -> helix bend
+    tip_bend_r: float = 20.0    # centre-line radius of the helix -> axial tip bend
+    tip_runout: float = 4.0     # straight axial run-out at the open tip
+    tip_tilt: float = 0.0       # tip axis angle from vertical (deg) at the end of the tip bend
     egg_A: float = 54.0         # inner egg major (radial) at the mouth
     egg_ratio: float = PHI      # A / B  ->  B = 54 / phi = 33.37
     egg_w: float = 0.2          # Hugelschaffer asymmetry w / a (0 = ellipse)
     indent: float = 0.25        # indent width as a fraction of A (quarter egg: 54 / 4 = 13.5 mm)
     indent_depth: float = 0.25  # indent depth as a fraction of the indent width (13.5 -> 3.4 mm)
     wall: float = 2.0
-    socket: float = 12.0        # straight female egg socket at the mouth
-    rings_per_turn: int = 80
+    socket: float = 12.0        # female egg socket = first part of the straight lead-in
+    rings_per_turn: int = 96
     segments: int = 144
 
 
@@ -227,49 +236,93 @@ def funnel_step(path, p: FunnelParams = FunnelParams()):
 
 
 # -------------------------------------------------------------------------------------------- horn
-def horn_path(p: HornParams, s: np.ndarray):
-    """Centre line, tangent and section frame (u = radial/blunt, v = T x u) at s in [0, 1]."""
-    N = p.turns
-    k = PHI ** (-N * s)
-    th = 2 * np.pi * N * s
-    R = p.R0 * k
-    c = np.stack([R * np.cos(th), R * np.sin(th), p.height * s], -1)
-    dR = -R * N * math.log(PHI)
-    dth = 2 * np.pi * N
-    dc = np.stack([dR * np.cos(th) - R * dth * np.sin(th), dR * np.sin(th) + R * dth * np.cos(th),
-                   np.full_like(s, p.height)], -1)
-    T = dc / np.linalg.norm(dc, axis=1, keepdims=True)
-    rad = np.stack([np.cos(th), np.sin(th), np.zeros_like(th)], -1)
+@dataclass
+class HornPath:
+    c: np.ndarray       # (n, 3) centre line, mouth centre at the origin, flow along +z at the mouth
+    T: np.ndarray       # unit tangent (flow direction)
+    u: np.ndarray       # section major axis: away from the helix axis (blunt end outboard)
+    v: np.ndarray       # T x u
+    k: np.ndarray       # section scale (1 at the mouth, phi^-turns at the tip)
+    s: np.ndarray       # arc length from the mouth (mm)
+    part: np.ndarray    # 0 lead-in, 1 bend in, 2 helix, 3 tip bend, 4 run-out
+    axis_xy: np.ndarray  # helix axis position (x, y) in these coordinates
+
+
+def _helix(p: HornParams, th: np.ndarray):
+    Th = 2 * np.pi * p.turns
+    R = p.R0 * PHI ** (-th / (2 * np.pi))
+    dR = -R * math.log(PHI) / (2 * np.pi)
+    c = np.stack([R * np.cos(th), R * np.sin(th), p.height * th / Th], -1)
+    d = np.stack([dR * np.cos(th) - R * np.sin(th), dR * np.sin(th) + R * np.cos(th),
+                  np.full_like(th, p.height / Th)], -1)
+    return c, d / np.linalg.norm(d, axis=-1, keepdims=True), PHI ** (-th / (2 * np.pi))
+
+
+def horn_path(p: HornParams = HornParams()) -> HornPath:
+    """Sampled centre line + section frames. Every junction is tangent-continuous (G1): circular-arc
+    bends lie in the vertical plane of the helix tangent, so they also keep the radial frame."""
+    z = np.array([0.0, 0.0, 1.0])
+    Th = 2 * np.pi * p.turns
+    nh = max(int(round(p.rings_per_turn * p.turns)), 8)
+    th = np.linspace(0.0, Th, nh + 1)
+    hc, hT, hk = _helix(p, th)
+    P0, T0, P1, T1 = hc[0], hT[0], hc[-1], hT[-1]
+    pts, tans, ks, parts = [], [], [], []
+    # bend in: tangent goes from +z to T0 in the plane (z, w0)
+    beta = math.acos(float(T0 @ z))
+    w0 = T0 - (T0 @ z) * z
+    w0 /= np.linalg.norm(w0)
+    A = P0 - p.bend_r * (math.sin(beta) * z + (1 - math.cos(beta)) * w0)
+    M = A - p.lead_in * z
+    for d in sorted({0.0, min(p.socket, p.lead_in), p.lead_in}):        # straight lead-in incl. socket
+        if d < p.lead_in:
+            pts.append(M + d * z), tans.append(z), ks.append(1.0), parts.append(0)
+    nb = max(int(math.ceil(p.rings_per_turn * beta / np.pi)), 6)
+    for q in np.linspace(0, beta, nb + 1)[:-1]:
+        pts.append(A + p.bend_r * (math.sin(q) * z + (1 - math.cos(q)) * w0))
+        tans.append(math.cos(q) * z + math.sin(q) * w0), ks.append(1.0), parts.append(1)
+    for i in range(nh + 1):
+        pts.append(hc[i]), tans.append(hT[i]), ks.append(float(hk[i])), parts.append(2)
+    # tip bend: tangent goes from T1 (elevation a1) to (90 - tilt) deg elevation in the plane (z, w1)
+    a1 = math.asin(float(T1 @ z))
+    a2 = math.radians(90.0 - p.tip_tilt)
+    w1 = T1 - (T1 @ z) * z
+    w1 /= np.linalg.norm(w1)
+    kt = PHI ** (-p.turns)
+    if a2 > a1 + 1e-9:
+        nt = max(int(math.ceil(p.rings_per_turn * (a2 - a1) / np.pi)), 6)
+        for q in np.linspace(a1, a2, nt + 1)[1:]:
+            pts.append(P1 + p.tip_bend_r * ((math.cos(a1) - math.cos(q)) * z + (math.sin(q) - math.sin(a1)) * w1))
+            tans.append(math.sin(q) * z + math.cos(q) * w1), ks.append(kt), parts.append(3)
+    if p.tip_runout > 0:
+        pts.append(pts[-1] + p.tip_runout * tans[-1]), tans.append(tans[-1]), ks.append(kt), parts.append(4)
+    c = np.asarray(pts) - M
+    T = np.asarray(tans)
+    axis = -M[:2]
+    rad = np.concatenate([c[:, :2] - axis, np.zeros((len(c), 1))], 1)
+    rad /= np.linalg.norm(rad, axis=1, keepdims=True)
     u = rad - (rad * T).sum(1, keepdims=True) * T
     u /= np.linalg.norm(u, axis=1, keepdims=True)
     v = np.cross(T, u)
-    return c, T, u, v, k
+    s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(c, axis=0), axis=1))])
+    return HornPath(c, T, u, v, np.asarray(ks), s, np.asarray(parts), axis)
 
 
-def horn_rings(p: HornParams = HornParams()):
-    """Inner and outer 3-D rings from the socket entrance to the tip (unplaced helix coordinates)."""
-    n = max(int(round(p.rings_per_turn * p.turns)), 8) + 1
-    s = np.linspace(0.0, 1.0, n)
-    c, T, u, v, k = horn_path(p, s)
+def horn_rings(p: HornParams = HornParams(), path: HornPath | None = None):
+    """Inner and outer 3-D rings from the mouth (socket entrance, z = 0) to the open tip."""
+    hp = path or horn_path(p)
     ph = _angles(p.segments)
     dense = _angles(DENSE)
     rin_d = horn_section(p, dense)
     rin = horn_section(p, ph)
+    cache = {}
     inner, outer = [], []
-
-    def place(ci, ui, vi, xy):
-        return ci + xy[:, :1] * ui + xy[:, 1:] * vi
-
-    # straight socket: one extra ring a socket-length back along -T at the mouth frame (scale 1)
-    pre = [c[0] - T[0] * p.socket] if p.socket > 0 else []
-    rout0 = offset_polar(rin_d, dense, p.wall, ph)
-    for cc in pre:
-        inner.append(place(cc, u[0], v[0], _ring2d(rin, ph)))
-        outer.append(place(cc, u[0], v[0], _ring2d(rout0, ph)))
-    for i in range(n):
-        ro = offset_polar(rin_d * k[i], dense, p.wall, ph)
-        inner.append(place(c[i], u[i], v[i], _ring2d(rin * k[i], ph)))
-        outer.append(place(c[i], u[i], v[i], _ring2d(ro, ph)))
+    for c, u, v, k in zip(hp.c, hp.u, hp.v, hp.k):
+        if k not in cache:
+            cache[k] = _ring2d(offset_polar(rin_d * k, dense, p.wall, ph), ph)
+        xi, xo = _ring2d(rin * k, ph), cache[k]
+        inner.append(c + xi[:, :1] * u + xi[:, 1:] * v)
+        outer.append(c + xo[:, :1] * u + xo[:, 1:] * v)
     return inner, outer
 
 
@@ -279,7 +332,7 @@ def build_horn_raw(p: HornParams = HornParams()) -> trimesh.Trimesh:
 
 
 def build_horn(p: HornParams = HornParams()) -> trimesh.Trimesh:
-    """Horn in print position: helix axis vertical, egg mouth (large end) down on the bed."""
+    """Horn in print position: flow axis vertical, egg mouth flat on the bed (z = 0)."""
     return drop_to_bed(build_horn_raw(p))
 
 
@@ -287,12 +340,29 @@ def horn_dims(p: HornParams = HornParams()) -> dict:
     A, B = p.egg_A, p.egg_A / p.egg_ratio
     ke = PHI ** (-p.turns)
     w = p.indent * A
+    hp = horn_path(p)
+    lead = 2 * np.pi * p.R0 * math.sqrt(1 + (math.log(PHI) / (2 * np.pi)) ** 2)
+    Tt = hp.T[-1]
+    tip_c = hp.c[-1]
+    helix = hp.c[hp.part == 2]
     return dict(mouth_A=A, mouth_B=B, tip_A=A * ke, tip_B=B * ke, R_end=p.R0 * ke,
-                pitch=p.height / p.turns, indent_width=w, indent_depth=w * p.indent_depth,
+                pitch=p.height / p.turns, helix_height=p.height, turns=p.turns, R0=p.R0,
+                lead_in=p.lead_in, socket=p.socket, bend_r=p.bend_r, tip_bend_r=p.tip_bend_r,
+                tip_runout=p.tip_runout,
+                helix_start_z=float(helix[0, 2]), helix_end_z=float(helix[-1, 2]),
+                centreline_height=float(tip_c[2]), centreline_length=float(hp.s[-1]),
+                mouth_axis_deg=float(math.degrees(math.acos(hp.T[0, 2]))),
+                tip_axis_deg=float(math.degrees(math.acos(min(1.0, Tt[2])))),
+                tip_offset_from_mouth_axis=float(np.hypot(*tip_c[:2])),
+                tip_offset_from_helix_axis=float(np.hypot(*(tip_c[:2] - hp.axis_xy))),
+                mouth_offset_from_helix_axis=float(np.hypot(*hp.axis_xy)),
+                bend_in_deg=float(math.degrees(math.acos(_helix(p, np.array([0.0]))[1][0, 2]))),
+                indent_width=w, indent_depth=w * p.indent_depth,
                 tip_indent_width=w * ke, tip_indent_depth=w * p.indent_depth * ke,
                 mouth_area_cm2=_area(horn_section(p, _angles(DENSE))) / 100.0,
                 tip_area_cm2=_area(horn_section(p, _angles(DENSE)) * ke) / 100.0,
-                helix_angle_deg=math.degrees(math.atan2(p.height / p.turns, 2 * math.pi * p.R0)))
+                helix_angle_deg=math.degrees(math.atan2(p.height / p.turns, lead)),
+                helix_angle_end_deg=math.degrees(math.atan2(p.height / p.turns, lead * ke)))
 
 
 def _area(r: np.ndarray) -> float:
@@ -370,17 +440,31 @@ def assembly(fp: FunnelParams = FunnelParams(), hp: HornParams = HornParams(),
     f.apply_transform(_flip(ztop))                                 # land at the bottom, z in [0, ztop]
     a = build_adapter(ap, hp)
     a.apply_transform(_flip(ap.cup_len))                          # shoulder at z = 0, spigot downward
-    z_mouth = -ap.loft                                             # spigot root = socket entrance
     hm = build_horn_raw(hp)
-    c, T, u, v, _ = horn_path(hp, np.array([0.0]))
-    entrance = c[0] - T[0] * hp.socket
-    Rm = np.stack([u[0], v[0], T[0]])                              # rows: horn local -> (x, y, axis)
-    world = np.diag([1.0, -1.0, -1.0]) @ Rm                        # u -> +x, v -> -y, T -> -z
+    hm.apply_transform(horn_world(hp, ap))
+    return f, a, hm
+
+
+def horn_world(hp: HornParams = HornParams(), ap: AdapterParams = AdapterParams()) -> np.ndarray:
+    """4x4 transform horn (raw) -> use position: mouth centre on the funnel axis at the spigot root
+    (z = -loft), flow +z -> -z, egg major u -> +x and v -> -y (matches the adapter egg and indent)."""
+    path = horn_path(hp)
+    Rm = np.stack([path.u[0], path.v[0], path.T[0]])              # rows: horn local -> (x, y, axis)
+    world = np.diag([1.0, -1.0, -1.0]) @ Rm
     M = np.eye(4)
     M[:3, :3] = world
-    M[:3, 3] = np.array([0, 0, z_mouth]) - world @ entrance
-    hm.apply_transform(M)
-    return f, a, hm
+    M[:3, 3] = np.array([0, 0, -ap.loft]) - world @ path.c[0]
+    return M
+
+
+def flow_path(fp: FunnelParams = FunnelParams(), hp: HornParams = HornParams(),
+              ap: AdapterParams = AdapterParams()) -> np.ndarray:
+    """Water path in use position: down the funnel axis, through the adapter, along the horn centre line."""
+    ztop = fp.collar + fp.H + fp.land
+    c = horn_path(hp).c
+    M = horn_world(hp, ap)
+    hc = c @ M[:3, :3].T + M[:3, 3]
+    return np.concatenate([[[0.0, 0.0, ztop]], [[0.0, 0.0, 0.0]], hc])
 
 
 def _flip(z_shift: float) -> np.ndarray:
@@ -398,21 +482,21 @@ def horn_clearance(p: HornParams = HornParams()) -> dict:
     """Self-intersection guards for the swept pipe.
 
     * ``min_advance``: every outer-section vertex moves forward along the path tangent from one ring
-      to the next (> 0 means neighbouring sections never cross, even at the tightening tip).
-    * ``min_turn_gap``: closest approach (mm) between outer-wall vertices of rings that are more
-      about one turn apart along the path (> 0 means no turn touches another)."""
+      to the next (> 0 means neighbouring sections never cross, in the bends and at the tip).
+    * ``min_turn_gap``: closest approach (mm) between outer-wall vertices of rings that are farther
+      apart along the centre line than twice the sum of their section radii (any non-neighbouring
+      parts of the pipe: turn to turn, lead-in to helix, tip to the turn below)."""
     from scipy.spatial.distance import cdist
 
-    inner, outer = horn_rings(p)
+    hp = horn_path(p)
+    _, outer = horn_rings(p, hp)
     O = np.asarray(outer)
-    n0 = 1 if p.socket > 0 else 0
-    n = max(int(round(p.rings_per_turn * p.turns)), 8) + 1
-    s = np.linspace(0.0, 1.0, n)
-    _, T, _, _, _ = horn_path(p, s)
-    adv = np.einsum("imk,ik->im", O[n0 + 1:] - O[n0:-1], T[:-1])
-    per = int(p.rings_per_turn)
+    adv = np.einsum("imk,ik->im", O[1:] - O[:-1], hp.T[:-1])
+    rmax = np.linalg.norm(O - hp.c[:, None, :], axis=2).max(1)
     gap = np.inf
-    for i in range(len(O)):           # the closest approach between turns is ~one turn apart
-        for j in range(i + per - per // 4, min(i + per + per // 4, len(O))):
-            gap = min(gap, float(cdist(O[i], O[j]).min()))
+    for i in range(len(O)):
+        far = np.nonzero(hp.s - hp.s[i] > 2 * (rmax[i] + rmax))[0]
+        for j in far:
+            if np.linalg.norm(hp.c[j] - hp.c[i]) - rmax[i] - rmax[j] < gap:
+                gap = min(gap, float(cdist(O[i], O[j]).min()))
     return dict(min_advance=float(adv.min()), min_turn_gap=gap)

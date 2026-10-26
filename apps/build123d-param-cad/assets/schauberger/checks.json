@@ -20,13 +20,13 @@
     "is_volume": true,
     "bodies": 1,
     "euler": 0,
-    "volume_cm3": 130.25782243248568,
+    "volume_cm3": 109.69195827048023,
     "extents": [
-      169.42279943838025,
-      150.25366476087896,
-      225.24732435501727
+      146.2385705863753,
+      129.57273872725506,
+      241.04406075763313
     ],
-    "triangles": 139392,
+    "triangles": 124992,
     "fits": true
   },
   "Schauberger_Adapter": {
@@ -47,21 +47,40 @@
   "horn_dims": {
     "mouth_A": 54.0,
     "mouth_B": 33.37383539249432,
-    "tip_A": 12.747670784988642,
-    "tip_B": 7.878493822517034,
-    "R_end": 15.344418537486328,
-    "pitch": 66.66666666666667,
+    "tip_A": 26.236886674858866,
+    "tip_B": 16.21528772404199,
+    "R_end": 25.265150131345575,
+    "pitch": 106.66666666666667,
+    "helix_height": 160.0,
+    "turns": 1.5,
+    "R0": 52.0,
+    "lead_in": 30.0,
+    "socket": 12.0,
+    "bend_r": 32.0,
+    "tip_bend_r": 20.0,
+    "tip_runout": 4.0,
+    "helix_start_z": 60.42845009888984,
+    "helix_end_z": 220.42845009888984,
+    "centreline_height": 241.04406075763313,
+    "centreline_length": 479.8663768228063,
+    "mouth_axis_deg": 0.0,
+    "tip_axis_deg": 0.0,
+    "tip_offset_from_mouth_axis": 79.37846926020168,
+    "tip_offset_from_helix_axis": 26.129494049669457,
+    "mouth_offset_from_helix_axis": 58.031563675339534,
+    "bend_in_deg": 71.96897830123976,
     "indent_width": 13.5,
     "indent_depth": 3.375,
-    "tip_indent_width": 3.1869176962471606,
-    "tip_indent_depth": 0.7967294240617901,
+    "tip_indent_width": 6.5592216687147165,
+    "tip_indent_depth": 1.6398054171786791,
     "mouth_area_cm2": 13.868514940871586,
-    "tip_area_cm2": 0.7728658488029027,
-    "helix_angle_deg": 9.270957266815035
+    "tip_area_cm2": 3.2739122730171704,
+    "helix_angle_deg": 18.031021698760252,
+    "helix_angle_end_deg": 33.82099871674823
   },
   "horn_clearance": {
-    "min_advance": 0.956834435262579,
-    "min_turn_gap": 37.29938832418826
+    "min_advance": 0.3203116448182217,
+    "min_turn_gap": 36.53033171841963
   },
   "adapter_dims": {
     "cup_id": 65.89999999999999,

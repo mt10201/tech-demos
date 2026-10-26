@@ -431,7 +431,8 @@ def schauberger_only():
     proc = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"), "--server.port",
                              str(PORT), "--server.headless", "true", "--browser.gatherUsageStats", "false"],
                             cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    shots = [("All three (mated)", "schauberger_assembly.png"), ("Funnel", "schauberger_funnel.png"),
+    shots = [("All three (mated)", "schauberger_assembly.png"),
+             ("Mated side view (water path)", "schauberger_assembly_side.png"), ("Funnel", "schauberger_funnel.png"),
              ("Horn", "schauberger_horn.png"), ("Adapter", "schauberger_adapter.png")]
     try:
         for _ in range(90):

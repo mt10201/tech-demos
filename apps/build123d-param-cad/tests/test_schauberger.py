@@ -75,37 +75,84 @@ def test_egg_section_orientation_and_size():
 
 def test_horn_helix_phi_taper_and_tip():
     p = S.HornParams()
+    assert 1.25 <= p.turns <= 1.75 and 50 <= p.R0 <= 55 and 160 <= p.height <= 180 and 25 <= p.lead_in <= 40
     d = S.horn_dims(p)
-    assert d["R_end"] == pytest.approx(65 / S.PHI ** 3, abs=1e-6)
-    assert d["tip_A"] == pytest.approx(54 / S.PHI ** 3, abs=1e-6)
-    assert d["tip_A"] > 12 and d["tip_B"] > 7.5                       # open tip, not a jet
-    assert d["pitch"] == pytest.approx(200 / 3)
-    c, T, u, v, k = S.horn_path(p, np.array([0.0, 1 / 3, 2 / 3, 1.0]))
-    assert np.allclose(k, S.PHI ** -np.arange(4.0))                    # 1/phi per turn
-    assert np.allclose(np.hypot(c[:, 0], c[:, 1]), 65 * k)
-    # right-handed: angle increases counter-clockwise while z rises
-    c2, *_ = S.horn_path(p, np.array([0.0, 0.01]))
-    assert math.atan2(c2[1, 1], c2[1, 0]) > 0 and c2[1, 2] > 0
-    # u points away from the helix axis (blunt end outboard)
-    assert np.all(np.einsum("ij,ij->i", u[:, :2], c[:, :2]) > 0)
+    assert d["R_end"] == pytest.approx(52 / S.PHI ** 1.5, abs=1e-6)
+    assert d["tip_A"] == pytest.approx(54 / S.PHI ** 1.5, abs=1e-6)
+    assert d["pitch"] == pytest.approx(160 / 1.5)
+    hp = S.horn_path(p)
+    hel = hp.part == 2
+    c, k = hp.c[hel], hp.k[hel]
+    assert k[0] == pytest.approx(1.0) and k[-1] == pytest.approx(S.PHI ** -1.5)       # 1/phi per turn
+    rel = c[:, :2] - hp.axis_xy
+    assert np.allclose(np.hypot(rel[:, 0], rel[:, 1]), 52 * k, atol=1e-9)            # R tracks the egg scale
+    ang = np.unwrap(np.arctan2(rel[:, 1], rel[:, 0]))
+    assert ang[-1] - ang[0] == pytest.approx(2 * np.pi * 1.5)
+    assert np.all(np.diff(ang) > 0) and np.all(np.diff(c[:, 2]) > 0)                 # right-handed
+    assert np.all(np.diff(hp.k) <= 1e-12)                                              # continuous taper
+    # u points away from the helix axis everywhere (blunt end outboard, indent on the axis side)
+    radial = hp.c[:, :2] - hp.axis_xy
+    assert np.all(np.einsum("ij,ij->i", hp.u[:, :2], radial) > 0)
+    # mouth and tip on the vertical flow axis
+    assert hp.T[0] == pytest.approx([0, 0, 1]) and d["mouth_axis_deg"] == pytest.approx(0, abs=1e-9)
+    assert d["tip_axis_deg"] <= 20.0
+    assert d["tip_A"] > 12 and d["tip_B"] > 7.5                                        # open tip, not a jet
+
+
+def test_horn_axial_lead_in_and_socket():
+    p = S.HornParams()
+    hp = S.horn_path(p)
+    lead = hp.s <= p.lead_in + 1e-9
+    assert hp.s[lead].max() == pytest.approx(p.lead_in)                                # 30 mm axial lead-in
+    assert np.allclose(hp.c[lead, :2], 0.0, atol=1e-9)                                 # on the mouth axis
+    assert np.allclose(hp.T[lead], [0, 0, 1])
+    inner, _ = S.horn_rings(p, hp)
+    a = inner[0]
+    for i in np.nonzero(lead)[0]:                                                      # straight egg socket
+        dv = inner[i] - a
+        assert np.allclose(dv, [0, 0, hp.s[i]], atol=1e-9)
+    assert p.socket <= p.lead_in
+
+
+def test_horn_path_is_tangent_continuous_and_indent_twists():
+    p = S.HornParams()
+    hp = S.horn_path(p)
+    turn = np.degrees(np.arccos(np.clip(np.einsum("ij,ij->i", hp.T[1:], hp.T[:-1]), -1, 1)))
+    assert turn.max() <= 360.0 / p.rings_per_turn               # only sampling steps: no kink at any junction
+    chord = np.diff(hp.c, axis=0)
+    chord /= np.linalg.norm(chord, axis=1, keepdims=True)
+    mid = hp.T[1:] + hp.T[:-1]
+    mid /= np.linalg.norm(mid, axis=1, keepdims=True)
+    assert np.einsum("ij,ij->i", chord, mid).min() > 0.9995     # positions agree with the tangents
+    inner, _ = S.horn_rings(p, hp)
+    j = p.segments // 2                                         # phi = pi: the indent centre (axis side)
+    depth = S.horn_section(p, np.array([np.pi]))[0]
+    for i in range(len(hp.c)):
+        assert inner[i][j] == pytest.approx(hp.c[i] - hp.k[i] * depth * hp.u[i], abs=1e-9)
 
 
 def test_horn_bbox_and_no_self_intersection(parts):
     h = parts["Schauberger_Horn"]
-    assert h.extents[0] <= 225 and h.extents[1] <= 225 and h.extents[2] <= 245
+    assert h.extents[0] <= 220 and h.extents[1] <= 220 and h.extents[2] <= 245
     assert h.bounds[0][2] == pytest.approx(0.0)
+    m = h.vertices[h.vertices[:, 2] < 1e-6]
+    assert len(m) >= 2 * S.HornParams().segments                # whole egg mouth is flat on the bed
     g = S.horn_clearance()
-    assert g["min_advance"] > 0.1           # neighbouring sections never cross (incl. the tip)
-    assert g["min_turn_gap"] > 5.0          # turns stay apart
+    assert g["min_advance"] > 0.1           # neighbouring sections never cross (bends and tip)
+    assert g["min_turn_gap"] > 5.0          # turns / lead-in / tip stay apart
 
 
-def test_horn_socket_is_straight_egg():
-    p = S.HornParams()
-    inner, _ = S.horn_rings(p)
-    a, b = inner[0], inner[1]               # socket entrance and helix start
-    dv = b - a
-    assert np.allclose(np.linalg.norm(dv, axis=1), 12.0, atol=1e-9)   # pure translation, same egg
-    assert np.allclose(dv, dv[0], atol=1e-9)
+def test_assembly_water_path_is_vertical_in_and_out():
+    fp, hp, ap = S.FunnelParams(), S.HornParams(), S.AdapterParams()
+    flow = S.flow_path(fp, hp, ap)
+    assert np.allclose(flow[:2, :2], 0)                         # straight down the funnel axis
+    path = S.horn_path(hp)
+    lead = flow[2:][path.s <= hp.lead_in + 1e-9]
+    assert np.allclose(lead[:, :2], 0, atol=1e-9)               # horn lead-in colinear with the funnel axis
+    assert lead[0, 2] == pytest.approx(-ap.loft)                # mouth at the adapter spigot root
+    tip_dir = flow[-1] - flow[-2]
+    tip_dir /= np.linalg.norm(tip_dir)
+    assert math.degrees(math.acos(-tip_dir[2])) <= 20           # tip points down the same axis
 
 
 def test_adapter_fits_funnel_and_horn():
@@ -135,7 +182,7 @@ def test_mated_assembly_has_no_interference():
         return manifold3d.Manifold(manifold3d.Mesh(vert_properties=np.asarray(m.vertices, np.float32),
                                                    tri_verts=np.asarray(m.faces, np.uint32)))
 
-    f, a, h = S.assembly(S.FunnelParams(samples=91, segments=96), S.HornParams(rings_per_turn=40, segments=72),
+    f, a, h = S.assembly(S.FunnelParams(samples=91, segments=96), S.HornParams(rings_per_turn=48, segments=72),
                          S.AdapterParams(segments=72))
     F, A, H = M(f), M(a), M(h)
     assert (F ^ A).volume() < 1e-6 and (A ^ H).volume() < 1e-6 and (F ^ H).volume() < 1e-6

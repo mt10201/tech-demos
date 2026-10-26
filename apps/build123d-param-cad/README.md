@@ -396,9 +396,9 @@ which also covers the MIT-licensed TRELLIS.2 (≥ 24 GB GPU) as a commercial-saf
 
 Mode ▸ **Schauberger vortex** builds three separate parts that fit together. Every one fits a 235 × 235 × 250 mm bed with a margin (envelope 225 × 225 × 245). STLs are in **millimetres**. The defaults are committed in [`assets/schauberger/`](assets/schauberger/) (`Schauberger_Funnel.stl` / `.step`, `Schauberger_Horn.stl`, `Schauberger_Adapter.stl`, `checks.json`).
 
-| Mated | Funnel | Horn | Adapter |
-|---|---|---|---|
-| ![](media/schauberger_assembly.png) | ![](media/schauberger_funnel.png) | ![](media/schauberger_horn.png) | ![](media/schauberger_adapter.png) |
+| Mated (side elevation, water path) | Mated | Funnel | Horn | Adapter |
+|---|---|---|---|---|
+| ![](media/schauberger_assembly_side.png) | ![](media/schauberger_assembly.png) | ![](media/schauberger_funnel.png) | ![](media/schauberger_horn.png) | ![](media/schauberger_adapter.png) |
 
 **Funnel.** The inner wall is the exact hyperbola r = 9450 / (90 + t) for t = 0…225, so the inside goes from Ø210.0 to Ø60.0.
 - The 2.8 mm wall is offset along the surface normal. That gives OD 215.6.
@@ -407,13 +407,15 @@ Mode ▸ **Schauberger vortex** builds three separate parts that fit together. E
 - The outside corner at the collar joint is rounded. The inside stays the exact hyperbola.
 - Print it collar-down.
 
-**Horn (kudu whorl pipe).** A right-hand helix with R0 65, 3 turns and a height of 200 (pitch 66.7).
-- The helix radius and the cross-section both scale by φ⁻¹ per turn: R goes from 65 to 15.3, and the inner egg goes from 54 × 33.4 to 12.7 × 7.9.
-- The section is a true Hügelschäffer egg (w/a = 0.2). Its major axis is radial, with the blunt end outboard and the pointed end toward the helix axis.
-- A quarter-egg indent (width 0.25·A = 13.5, depth 3.4) runs along the pointed flank.
-- The wall is 2.0 mm. A 12 mm straight egg socket sits at the mouth, and the tip is open.
-- The bounding box is 169 × 150 × 225 mm. Self-clearance between turns is ≥ 37 mm.
-- Print it mouth-down with supports. The helix tangent at the mouth is only 9° above horizontal.
+**Horn (kudu whorl pipe, v2: an elongated spiral on the flow axis).** Water enters and leaves along the vertical funnel axis:
+- **Axial lead-in:** 30 mm of straight egg tube on the funnel/adapter axis. Its first 12 mm is the egg socket for the adapter spigot.
+- **Bend in:** a tangent-continuous circular bend (centre-line r 32) through 72° turns the tube into the helix tangent.
+- **Helix:** a right-hand golden-tapered spiral, 1.5 turns over 160 mm (pitch 106.7). R goes from 52 to 25.3 (= R0/φ^1.5), and the egg scales continuously by 1/φ per turn, from 54 × 33.4 to 26.2 × 16.2 (open tip). The helix angle runs from 18.0° to 33.8°.
+- **Tip:** a tangent-continuous bend (r 20) back to vertical, then a 4 mm axial run-out. The tip axis is 0° from vertical. It is parallel to the funnel axis and offset 79.4 mm from it (26.1 mm from the helix axis).
+- **Section:** a Hügelschäffer egg (w/a = 0.2). The major axis always points away from the helix axis (blunt end outboard, pointed end toward the axis), including through the lead-in, where it points from the helix axis to the mouth. A quarter-egg indent (13.5 × 3.4 at the mouth) on the axis-side flank twists with the path for the full length. It also keys the adapter spigot.
+- **Size:** wall 2.0. Total height 241.0 mm, swing 146 × 130 mm. Self-clearance ≥ 36 mm.
+- Sliders cover lead-in, turns, R0, helix height, tip run-out and both bend radii.
+- **Print mouth-down:** the egg mouth sits flat on the bed and the lead-in is vertical, so the mouth, socket and lead-in need no supports. The helix still climbs at only 18–34° and the turns overhang each other, so use tree/organic supports touching the build plate and the model under the spiral. The bore ceiling is a self-supporting egg arch, but expect slight sag at its crown in the flattest (first) turn.
 
 **Adapter.** This is the only circle → egg transition.
 - A cup (ID 65.9 = land OD + 0.3, wall 1.9, 5 mm deep) takes the funnel land.
@@ -427,7 +429,7 @@ Every exported part is checked: watertight, one body, consistent winding, positi
 
 ```bash
 python scripts/build_schauberger.py [extra_out_dir ...]   # rebuild STLs/STEP + checks.json into assets/schauberger/
-python capture.py schauberger                             # media/schauberger_{assembly,funnel,horn,adapter}.png
+python capture.py schauberger                             # media/schauberger_{assembly,assembly_side,funnel,horn,adapter}.png
 ```
 
 This mode uses `width="stretch"` and needs **streamlit ≥ 1.50**. On an existing venv, run `pip install -U -r requirements.txt`.
@@ -491,7 +493,7 @@ python capture.py new-libs
 # writes media/mold_clamps{,_assembly,_parts}.png, photo_master{,_input,_rebuilt}.png and the video
 #        media/new_libs_demo.webm (clamps on, then Photo → master)
 python capture.py schauberger
-# writes media/schauberger_{assembly,funnel,horn,adapter}.png
+# writes media/schauberger_{assembly,assembly_side,funnel,horn,adapter}.png
 ```
 
 ## Make your own shapes
