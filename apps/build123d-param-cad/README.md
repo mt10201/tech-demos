@@ -392,6 +392,46 @@ background remover (RMBG-2.0) and nvdiffrast are non-commercial, and it needs CU
 That rules it out for selling castings and for this CPU box. See [`docs/photo_to_3d.md`](docs/photo_to_3d.md),
 which also covers the MIT-licensed TRELLIS.2 (≥ 24 GB GPU) as a commercial-safe generator to feed this mode.
 
+## Schauberger vortex (funnel · kudu horn · adapter)
+
+Mode ▸ **Schauberger vortex** builds three separate parts that fit together. Every one fits a 235 × 235 × 250 mm bed with a margin (envelope 225 × 225 × 245). STLs are in **millimetres**. The defaults are committed in [`assets/schauberger/`](assets/schauberger/) (`Schauberger_Funnel.stl` / `.step`, `Schauberger_Horn.stl`, `Schauberger_Adapter.stl`, `checks.json`).
+
+| Mated | Funnel | Horn | Adapter |
+|---|---|---|---|
+| ![](media/schauberger_assembly.png) | ![](media/schauberger_funnel.png) | ![](media/schauberger_horn.png) | ![](media/schauberger_adapter.png) |
+
+**Funnel.** The inner wall is the exact hyperbola r = 9450 / (90 + t) for t = 0…225, so the inside goes from Ø210.0 to Ø60.0.
+- The 2.8 mm wall is offset along the surface normal. That gives OD 215.6.
+- There is a 15 mm straight freeboard collar and a 5 mm circular throat land (Ø60 ID / Ø65.6 OD), for a total height of 245.0.
+- The land was shortened from 8–10 mm so the part stays under 245.
+- The outside corner at the collar joint is rounded. The inside stays the exact hyperbola.
+- Print it collar-down.
+
+**Horn (kudu whorl pipe).** A right-hand helix with R0 65, 3 turns and a height of 200 (pitch 66.7).
+- The helix radius and the cross-section both scale by φ⁻¹ per turn: R goes from 65 to 15.3, and the inner egg goes from 54 × 33.4 to 12.7 × 7.9.
+- The section is a true Hügelschäffer egg (w/a = 0.2). Its major axis is radial, with the blunt end outboard and the pointed end toward the helix axis.
+- A quarter-egg indent (width 0.25·A = 13.5, depth 3.4) runs along the pointed flank.
+- The wall is 2.0 mm. A 12 mm straight egg socket sits at the mouth, and the tip is open.
+- The bounding box is 169 × 150 × 225 mm. Self-clearance between turns is ≥ 37 mm.
+- Print it mouth-down with supports. The helix tangent at the mouth is only 9° above horizontal.
+
+**Adapter.** This is the only circle → egg transition.
+- A cup (ID 65.9 = land OD + 0.3, wall 1.9, 5 mm deep) takes the funnel land.
+- A 20 mm no-twist loft converges from the flush Ø60 bore to the egg.
+- An 11 mm spigot (outer egg 53.70 × 33.07, 0.3 clearance in the 54 × 33.4 socket, 0.6 mm chamfered lip) slides into the horn socket.
+- The indent runs through the spigot, so the joint only goes together one way.
+- The bore never expands inside the adapter. There is a ~1.95 mm step out into the horn bore, which is unavoidable when a spigot fits inside the socket.
+- Print it cup-down.
+
+Every exported part is checked: watertight, one body, consistent winding, positive volume, Euler number 0 (one through-hole). The mated parts are also checked for zero intersection volume.
+
+```bash
+python scripts/build_schauberger.py [extra_out_dir ...]   # rebuild STLs/STEP + checks.json into assets/schauberger/
+python capture.py schauberger                             # media/schauberger_{assembly,funnel,horn,adapter}.png
+```
+
+This mode uses `width="stretch"` and needs **streamlit ≥ 1.50**. On an existing venv, run `pip install -U -r requirements.txt`.
+
 ## build123d dev features: fillet error reporting (PR #1525) and `filter_by_value` (PR #1524)
 
 Both are only on build123d `dev` (after 0.13.0), so **the app stays on the released build123d** (no git pin).
@@ -450,6 +490,8 @@ REFERENCE_PHOTO=/path/to/photo.png python capture.py
 python capture.py new-libs
 # writes media/mold_clamps{,_assembly,_parts}.png, photo_master{,_input,_rebuilt}.png and the video
 #        media/new_libs_demo.webm (clamps on, then Photo → master)
+python capture.py schauberger
+# writes media/schauberger_{assembly,funnel,horn,adapter}.png
 ```
 
 ## Make your own shapes

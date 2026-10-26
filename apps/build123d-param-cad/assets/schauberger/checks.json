@@ -1,0 +1,83 @@
+{
+  "Schauberger_Funnel": {
+    "watertight": true,
+    "winding_consistent": true,
+    "is_volume": true,
+    "bodies": 1,
+    "euler": 0,
+    "volume_cm3": 270.11499371500054,
+    "extents": [
+      215.6,
+      215.6,
+      245.0
+    ],
+    "triangles": 149600,
+    "fits": true
+  },
+  "Schauberger_Horn": {
+    "watertight": true,
+    "winding_consistent": true,
+    "is_volume": true,
+    "bodies": 1,
+    "euler": 0,
+    "volume_cm3": 130.25782243248568,
+    "extents": [
+      169.42279943838025,
+      150.25366476087896,
+      225.24732435501727
+    ],
+    "triangles": 139392,
+    "fits": true
+  },
+  "Schauberger_Adapter": {
+    "watertight": true,
+    "winding_consistent": true,
+    "is_volume": true,
+    "bodies": 1,
+    "euler": 0,
+    "volume_cm3": 16.088179187844183,
+    "extents": [
+      69.69999999999999,
+      69.69999999999999,
+      36.0
+    ],
+    "triangles": 16128,
+    "fits": true
+  },
+  "horn_dims": {
+    "mouth_A": 54.0,
+    "mouth_B": 33.37383539249432,
+    "tip_A": 12.747670784988642,
+    "tip_B": 7.878493822517034,
+    "R_end": 15.344418537486328,
+    "pitch": 66.66666666666667,
+    "indent_width": 13.5,
+    "indent_depth": 3.375,
+    "tip_indent_width": 3.1869176962471606,
+    "tip_indent_depth": 0.7967294240617901,
+    "mouth_area_cm2": 13.868514940871586,
+    "tip_area_cm2": 0.7728658488029027,
+    "helix_angle_deg": 9.270957266815035
+  },
+  "horn_clearance": {
+    "min_advance": 0.956834435262579,
+    "min_turn_gap": 37.29938832418826
+  },
+  "adapter_dims": {
+    "cup_id": 65.89999999999999,
+    "cup_od": 69.69999999999999,
+    "length": 36.0,
+    "cup_len": 5.0,
+    "loft": 20.0,
+    "spigot_len": 11.0,
+    "spigot_egg_out_A": 53.7,
+    "spigot_egg_out_B": 33.074817102368854,
+    "spigot_egg_in_A": 50.097014784737965,
+    "spigot_egg_in_B": 29.478702005988097,
+    "ledge_into_horn": 1.9514926076310175,
+    "spigot_out_A": 50.325,
+    "spigot_out_B": 33.074817102368854,
+    "spigot_in_A": 46.725,
+    "spigot_in_B": 29.474288193642533
+  }
+}

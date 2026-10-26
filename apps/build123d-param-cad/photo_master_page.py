@@ -144,17 +144,17 @@ def render(choice) -> None:
     with a:
         V, F = raw_vf
         bt, n = _boundary_trace(V, F)
-        st.plotly_chart(_fig(V, F, RAW, extra=[bt]), use_container_width=True)
+        st.plotly_chart(_fig(V, F, RAW, extra=[bt]), width="stretch")
         st.caption(f"Input{' with simulated defects' if p.damage else ''}: {n} open boundary loops in red, "
                    "floating debris beside it.")
     with b:
         V, F = prev_vf
-        st.plotly_chart(_fig(V, F, GOOD), use_container_width=True)
+        st.plotly_chart(_fig(V, F, GOOD), width="stretch")
         st.caption("Rebuilt master (preview decimated), flat base on z = 0.")
     with st.expander("Repair log"):
         st.code("\n".join(rep.log) or "(no log)")
     st.download_button(f"Download master STL ({len(stl) / 1e6:.1f} MB, mm)", data=stl,
                        file_name=f"photo_master_{p.height_mm:.0f}mm.stl", mime="model/stl",
-                       use_container_width=True, disabled=not rep.ok())
+                       width="stretch", disabled=not rep.ok())
     st.caption("Licensing: only sell castings of meshes whose licence allows commercial use and derivatives "
                "(e.g. CC0 / CC BY). UniForge3D's weights are CC BY-NC 4.0 (see docs/photo_to_3d.md).")

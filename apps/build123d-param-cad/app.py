@@ -45,12 +45,13 @@ MM = MM_PER_IN
 
 
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master"], horizontal=True,
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Schauberger vortex"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai. "
                          "Black Madonna: a 4 in (101.6 mm) Chartres Black Madonna de Sous-Terre mold master. "
-                         "Photo → master: repair any photo-to-3D or scan mesh into a printable mold master.")
-if mode not in ("Moai statue", "Black Madonna", "Photo → master"):
+                         "Photo → master: repair any photo-to-3D or scan mesh into a printable mold master. "
+                         "Schauberger vortex: hyperbolic funnel + kudu-horn whorl pipe + converging adapter.")
+if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Schauberger vortex"):
     st.title("Rodin coil torus — groove lattice")
     st.caption(
         "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
@@ -69,6 +70,12 @@ if mode == "Black Madonna":
     import madonna_page
 
     madonna_page.render(madonna_page.sidebar())
+    st.stop()
+
+if mode == "Schauberger vortex":
+    import schauberger_page
+
+    schauberger_page.render(schauberger_page.sidebar())
     st.stop()
 
 if mode == "Photo → master":
@@ -230,7 +237,7 @@ with col_view:
         ),
         margin=dict(l=0, r=0, t=0, b=0), height=560, paper_bgcolor="#0e1117",
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 with col_front:
     st.subheader("Front view (along the axis, photo-style)")
@@ -252,7 +259,7 @@ with col_front:
         ),
         margin=dict(l=0, r=0, t=0, b=0), height=560, paper_bgcolor="#f4f4f4",
     )
-    st.plotly_chart(front, use_container_width=True)
+    st.plotly_chart(front, width="stretch")
 
 h_wall = wall_height(params)
 prof = ("U-groove" if h_wall > 1e-9 else
@@ -331,7 +338,7 @@ for col, (lab, S, T, N, w, dmax) in zip(cz[:2], [c for c in cl if c[0] in crops]
         margin=dict(l=0, r=0, t=30, b=0), height=360, paper_bgcolor="#f4f4f4",
         title=dict(text=f"{lab}: {w * MM:.3f} mm wide", x=0.5, font=dict(color="#222", size=13)),
     )
-    col.plotly_chart(figp, use_container_width=True)
+    col.plotly_chart(figp, width="stretch")
 with cz[2]:
     import trimesh
 
@@ -358,18 +365,18 @@ with cz[2]:
         xaxis=dict(range=[-3.0, 3.0]), yaxis=dict(scaleanchor="x", range=[-3.8, 0.5]),
         legend=dict(orientation="h", y=-0.3),
     )
-    st.plotly_chart(pf, use_container_width=True)
+    st.plotly_chart(pf, width="stretch")
 
 st.subheader("Downloads")
 d1, d2 = st.columns(2)
 with d1:
-    if st.button("Prepare high-res STL (mesh boolean)", use_container_width=True):
+    if st.button("Prepare high-res STL (mesh boolean)", width="stretch"):
         st.session_state["stl"] = (params, *_stl(params))
     if st.session_state.get("stl") and st.session_state["stl"][0] == params:
         _, data_bytes, ntri = st.session_state["stl"]
         st.download_button(f"Download STL (mm) — {ntri:,} triangles, {len(data_bytes)/1e6:.0f} MB",
                            data=data_bytes, file_name=f"rodin_torus_{pattern}_mm.stl",
-                           mime="model/stl", use_container_width=True)
+                           mime="model/stl", width="stretch")
     st.caption(
         f"STL in **millimetres** ({bx:.1f} × {by:.1f} × {bz:.1f} mm): import at 100 % scale. "
         "Finished, watertight grooved solid from a manifold3d boolean "
@@ -377,7 +384,7 @@ with d1:
     )
 with d2:
     if st.button("Prepare STEP — finished solid (build123d, several minutes)",
-                 use_container_width=True):
+                 width="stretch"):
         bar = st.progress(0.0, text="Subtracting grooves one at a time in OpenCascade…")
         try:
             from rodin_torus import finished_step_bytes
@@ -393,12 +400,12 @@ with d2:
         st.download_button("Download STEP (finished grooved solid)",
                            data=st.session_state["step_solid"][1],
                            file_name=f"rodin_torus_{pattern}_grooved_mm.step",
-                           mime="application/step", use_container_width=True)
+                           mime="application/step", width="stretch")
     st.caption(
         "Exact B-rep with the grooves already cut, in **millimetres**: opens in SOLIDWORKS as one solid body. "
         "Takes several minutes (24 sequential OpenCascade cuts); the file is ~90 MB."
     )
-    if st.button("Build STEP tool bodies (fast fallback)", use_container_width=True):
+    if st.button("Build STEP tool bodies (fast fallback)", width="stretch"):
         try:
             st.session_state["step"] = (params, _step(params))
         except Exception as exc:  # sweeps can fail on extreme settings
@@ -406,7 +413,7 @@ with d2:
     if st.session_state.get("step") and st.session_state["step"][0] == params:
         st.download_button("Download STEP (torus + cutter bodies)", data=st.session_state["step"][1],
                            file_name=f"rodin_torus_{pattern}_bodies_mm.step", mime="application/step",
-                           use_container_width=True)
+                           width="stretch")
     st.caption(
         "Fallback: torus + groove cutter bodies + centre-lines. In SOLIDWORKS: "
         "Insert ▸ Features ▸ Combine ▸ **Subtract** (main body = torus, bodies to subtract = all grooves)."
@@ -444,7 +451,7 @@ with st.expander("Groove centre-line diagram (front view)"):
         yaxis=dict(range=[-lim, lim], showgrid=False, zeroline=False, title="Y (mm)"),
         legend=dict(orientation="h", y=-0.08, font=dict(color="#e5e7eb")),
     )
-    st.plotly_chart(tf, use_container_width=True)
+    st.plotly_chart(tf, width="stretch")
 
 st.subheader("Groove table")
 st.dataframe(
@@ -461,7 +468,7 @@ st.dataframe(
             (fam, a) for fam in families(params) for a in start_angles_deg(params)
         )
     ],
-    hide_index=True, use_container_width=True,
+    hide_index=True, width="stretch",
 )
 
 st.subheader("Generated build123d snippet")

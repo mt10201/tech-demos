@@ -169,10 +169,10 @@ def render(choice) -> None:
     for col, (name, eye) in zip(cols, VIEWS.items()):
         with col:
             st.caption(name)
-            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), use_container_width=True)
+            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), width="stretch")
 
     st.subheader("Download (mm)")
-    if st.button("Prepare high-res STL", use_container_width=True):
+    if st.button("Prepare high-res STL", width="stretch"):
         hv, hf = _mesh(p, 220)
         st.session_state["madonna_stl"] = (p, stl_bytes(hv, hf), len(hf))
     got = st.session_state.get("madonna_stl")
@@ -183,7 +183,7 @@ def render(choice) -> None:
             data=got[1],
             file_name=name,
             mime="model/stl",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -219,7 +219,7 @@ def render_master(height_mm: float) -> None:
     for col, (name, eye) in zip(cols, VIEWS.items()):
         with col:
             st.caption(name)
-            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), use_container_width=True)
+            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), width="stretch")
     st.caption(
         f"Interactive 4-angle preview ({len(f):,} triangles). The download below is the full high-resolution mold master."
     )
@@ -231,7 +231,7 @@ def render_master(height_mm: float) -> None:
                 str(comp_img),
                 caption="Top row: multi-angle studio photos (Front, 3/4, Profile, Back). "
                         "Bottom row: 101.6 mm (4.0 in) watertight genus-0 mold master.",
-                use_container_width=True,
+                width="stretch",
             )
 
     st.subheader("Download (mm)")
@@ -242,7 +242,7 @@ def render_master(height_mm: float) -> None:
         data=data,
         file_name=name,
         mime="model/stl",
-        use_container_width=True,
+        width="stretch",
     )
     st.caption(
         "Mold-master geometry: flat base on z = 0 (seals cleanly on a mold board), solid four-post Romanesque throne "

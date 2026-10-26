@@ -227,7 +227,7 @@ def render(t: TorusParams, m: MoldParams) -> None:
         fig = go.Figure([_mesh(va, fa, PLATE, "master A"), _mesh(vf, ff, FRAME, "frame")])
         fig.update_layout(scene=_scene(dict(x=0.35, y=-1.45, z=1.55)), height=520,
                           margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("Master A in its pour frame (like the reference photo)"
                    + (", the wall standing in the locating groove." if m.groove else "."))
     with right:
@@ -235,16 +235,16 @@ def render(t: TorusParams, m: MoldParams) -> None:
         fig_b = go.Figure([_mesh(vb, fb, PLATE)])
         fig_b.update_layout(scene=_scene(dict(x=0.9, y=-1.3, z=1.5)), height=300,
                             margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3")
-        st.plotly_chart(fig_b, use_container_width=True)
+        st.plotly_chart(fig_b, width="stretch")
         st.caption("Master B: bottom half turned over, key sockets.")
-        st.plotly_chart(section_figure(t, m, meshes), use_container_width=True)
+        st.plotly_chart(section_figure(t, m, meshes), width="stretch")
         if m.groove:
-            st.plotly_chart(groove_detail_figure(t, m, meshes), use_container_width=True)
+            st.plotly_chart(groove_detail_figure(t, m, meshes), width="stretch")
 
     st.subheader("Mold downloads (mm)")
     d1, d2 = st.columns(2)
     with d1:
-        if st.button("Prepare high-res mold STLs", use_container_width=True):
+        if st.button("Prepare high-res mold STLs", width="stretch"):
             st.session_state["mold_stl"] = ((t, m), _stls(t, m))
         got = st.session_state.get("mold_stl")
         if got and got[0] == (t, m):
@@ -253,11 +253,11 @@ def render(t: TorusParams, m: MoldParams) -> None:
                 data, ntri = got[1][k]
                 st.download_button(f"Download {fname} — {ntri:,} triangles, {len(data) / 1e6:.1f} MB",
                                    data=data, file_name=fname, mime="model/stl",
-                                   use_container_width=True, key=f"dl_{k}")
+                                   width="stretch", key=f"dl_{k}")
         st.caption("Same smooth manifold3d torus mesh as the torus STL, split at the equator. "
                    "Watertight, in mm, each part flat side down.")
     with d2:
-        if st.button("Prepare mold STEPs (exact B-rep, ~5 min)", use_container_width=True):
+        if st.button("Prepare mold STEPs (exact B-rep, ~5 min)", width="stretch"):
             bar = st.progress(0.0, text="Cutting grooves in OpenCascade…")
             try:
                 from mold import master_step_bytes
@@ -271,7 +271,7 @@ def render(t: TorusParams, m: MoldParams) -> None:
             for fname, data in got[1].items():
                 st.download_button(f"Download {fname} ({len(data) / 1e6:.0f} MB)", data=data,
                                    file_name=fname, mime="application/step",
-                                   use_container_width=True, key=f"dl_{fname}")
+                                   width="stretch", key=f"dl_{fname}")
         st.caption("Finished grooved torus (24 sequential OpenCascade cuts) split at z = 0 and fused "
                    "with the plate and keys. Opens in SOLIDWORKS as one solid per part.")
     clamp_section(t, m)
@@ -372,7 +372,7 @@ def clamp_section(t: TorusParams, m: MoldParams) -> None:
         fig = go.Figure(traces)
         fig.update_layout(scene=_scene(dict(x=0.45, y=-1.5, z=1.0)), height=480,
                           margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("Master A in its frame with the clamps screwed down onto the wall top "
                    "(the plate rests on the jaws; all clamps identical, so it stays level).")
     with b:
@@ -385,12 +385,12 @@ def clamp_section(t: TorusParams, m: MoldParams) -> None:
             x = V[:, 0].max() + 8
         fig.update_layout(scene=_scene(dict(x=0.2, y=-1.6, z=0.9)), height=300,
                           margin=dict(l=0, r=0, t=0, b=0), paper_bgcolor="#d9c7a3", showlegend=False)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         st.caption("Print poses: clamp on its side (teardrop hole, no supports), nut flat, screw head down.")
         rows = [{"part": k, "X×Y×Z mm": " × ".join(f"{v:.1f}" for v in s["ext"]), "cm³": round(s["vol"] / 1000, 1),
                  "watertight": s["watertight"], "bodies": s["bodies"]} for k, s in stats.items()]
-        st.dataframe(rows, hide_index=True, use_container_width=True)
-    if st.button("Prepare clamp STL + STEP files", use_container_width=True):
+        st.dataframe(rows, hide_index=True, width="stretch")
+    if st.button("Prepare clamp STL + STEP files", width="stretch"):
         st.session_state["clamp_files"] = ((t, m, c), _clamp_files(t, m, c))
     got = st.session_state.get("clamp_files")
     if got and got[0] == (t, m, c):
@@ -398,8 +398,8 @@ def clamp_section(t: TorusParams, m: MoldParams) -> None:
         for col, (k, (stl, step)) in zip(cols, got[1].items()):
             col.download_button(f"{k}_M{c.size}.stl ({len(stl) / 1e6:.1f} MB)", data=stl,
                                 file_name=f"clamp_{k}_M{c.size}_mm.stl", mime="model/stl",
-                                use_container_width=True, key=f"dl_clamp_{k}_stl")
+                                width="stretch", key=f"dl_clamp_{k}_stl")
             col.download_button(f"{k}_M{c.size}.step", data=step, file_name=f"clamp_{k}_M{c.size}_mm.step",
-                                mime="application/step", use_container_width=True, key=f"dl_clamp_{k}_step")
+                                mime="application/step", width="stretch", key=f"dl_clamp_{k}_step")
     st.caption(f"Print {c.count} of each. The nut slot also takes a steel M{c.size} DIN 934 nut. "
                "Screw down finger-tight after the frame is seated in the groove, then pour.")

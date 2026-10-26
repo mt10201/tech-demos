@@ -80,17 +80,17 @@ def render(choice) -> None:
     for col, (name, eye) in zip(cols, VIEWS.items()):
         with col:
             st.caption(name)
-            st.plotly_chart(figure(v, f, eye), use_container_width=True)
+            st.plotly_chart(figure(v, f, eye), width="stretch")
 
     st.subheader("Download (mm)")
-    if st.button("Prepare high-res STL", use_container_width=True):
+    if st.button("Prepare high-res STL", width="stretch"):
         hv, hf = _mesh(p, 300)
         st.session_state["moai_stl"] = (p, stl_bytes(hv, hf), len(hf))
     got = st.session_state.get("moai_stl")
     if got and got[0] == p:
         name = f"moai_{p.height_mm:.0f}mm.stl"
         st.download_button(f"Download {name} — {got[2]:,} triangles, {len(got[1]) / 1e6:.1f} MB",
-                           data=got[1], file_name=name, mime="model/stl", use_container_width=True)
+                           data=got[1], file_name=name, mime="model/stl", width="stretch")
     st.caption(
         "Watertight marching-cubes mesh (≈0.5 mm grid at 152 mm), standing on z = 0. STEP is not offered: "
         "the statue is an organic mesh, and a faceted STEP of ~200 k triangles is not a useful CAD file. "
@@ -118,14 +118,14 @@ def render_scan(height_mm: float) -> None:
     for col, (name, eye) in zip(cols, SCAN_VIEWS.items()):
         with col:
             st.caption(name)
-            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), use_container_width=True)
+            st.plotly_chart(figure(v, f, eye, light_back=name == "Back"), width="stretch")
     st.caption(f"Preview: decimated copy ({len(f):,} triangles). The download is the full mold master.")
 
     st.subheader("Download (mm)")
     data = moai_scan.stl_bytes(height_mm)
     name = moai_scan.file_name(height_mm)
     st.download_button(f"Download {name} — {len(data) / 1e6:.1f} MB", data=data, file_name=name,
-                       mime="model/stl", use_container_width=True)
+                       mime="model/stl", width="stretch")
     st.caption(
         "Mold master: flat base, sculpted weathered back modelled on real moai (the scan never captured it), closed nostrils "
         "and no tunnels, so silicone can't lock in. "
