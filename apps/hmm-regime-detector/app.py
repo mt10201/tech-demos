@@ -1,4 +1,4 @@
-"""Streamlit app: Gaussian Hidden Markov Model (hmmlearn) Market-Regime Detector & Walk-Forward Backtest."""
+"""Streamlit app: Gaussian / Student-t Hidden Markov Model Market-Regime Detector & Walk-Forward Backtest."""
 
 from __future__ import annotations
 
@@ -14,7 +14,9 @@ from hmm_demo import (
     build_regime_price_and_prob_chart,
     build_transition_matrix_heatmap,
     compute_features,
+    compute_performance_metrics,
     compute_regime_summary_table,
+    compute_switching_stats,
     default_regime_weights,
     fetch_prices,
     get_regime_metadata,
@@ -49,6 +51,8 @@ def _cached_run_hmm(
     min_train_days: int,
     refit_every: int,
     covariance_type: str,
+    distribution: str = "gaussian",
+    df_nu: float = 5.0,
 ):
     feat = compute_features(prices_df, primary_ticker=primary_ticker, vol_window=vol_window)
     X = feat[["log_return", "rolling_vol"]].to_numpy()
@@ -59,8 +63,69 @@ def _cached_run_hmm(
         refit_every=refit_every,
         covariance_type=covariance_type,
         random_state=42,
+        distribution=distribution,
+        df_nu=df_nu,
     )
     return feat, hmm_res
+
+
+DIST_LABELS = {"gaussian": "Gaussian", "student_t": "Student-t"}
+
+
+def _build_distribution_comparison(
+    prices_df: pd.DataFrame,
+    tickers: list[str],
+    vol_window: int,
+    n_states: int,
+    min_train_days: int,
+    refit_every: int,
+    covariance_type: str,
+    df_nu: float,
+    regime_weights: pd.DataFrame,
+    sizing_mode: str,
+    cost_bps: float,
+) -> pd.DataFrame:
+    """Run Gaussian and Student-t walk-forward HMMs side by side and summarize both (OOS only)."""
+    rows = []
+    for dist in ("gaussian", "student_t"):
+        feat, res = _cached_run_hmm(
+            prices_df,
+            primary_ticker=tickers[0],
+            vol_window=vol_window,
+            n_states=n_states,
+            min_train_days=min_train_days,
+            refit_every=refit_every,
+            covariance_type=covariance_type,
+            distribution=dist,
+            df_nu=df_nu,
+        )
+        bt = run_walk_forward_backtest(
+            features_df=feat,
+            causal_proba=res.walk_forward_proba,
+            smoother_proba=res.smoother_proba,
+            tickers=tickers,
+            regime_weights=regime_weights,
+            sizing_mode=sizing_mode,
+            cost_bps=cost_bps,
+            forward_only_proba=res.forward_only_proba,
+        )
+        oos = res.min_train_days
+        sw = compute_switching_stats(res.walk_forward_states, start=oos)
+        wf_ret = bt.returns_df["HMM Walk-Forward (No Look-Ahead)"].to_numpy()[oos:]
+        perf = compute_performance_metrics(wf_ret, strategy_name=DIST_LABELS[dist])
+        label = DIST_LABELS[dist] + (f" (nu = {df_nu:g})" if dist == "student_t" else "")
+        rows.append(
+            {
+                "Emission Model": label,
+                "Regime Switches / Yr": round(sw["switches_per_year"], 1),
+                "1-2 Day Whipsaws / Yr": round(sw["whipsaws_per_year"], 1),
+                "Avg Regime Spell (days)": round(sw["avg_spell_days"], 1),
+                "CAGR (%)": perf["CAGR (%)"],
+                "Sharpe": perf["Sharpe"],
+                "Max Drawdown (%)": perf["Max Drawdown (%)"],
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def _get_query_param(name: str, default: str) -> str:
@@ -78,7 +143,7 @@ def main() -> None:
     if qp_period not in HISTORY_WINDOWS:
         qp_period = "10y"
 
-    st.title("📈 Gaussian HMM Market-Regime Detector (`hmmlearn`)")
+    st.title("📈 HMM Market-Regime Detector (Gaussian / Student-t)")
     st.caption(
         "⚠️ **Research & visualization only — not financial advice.** "
         "This tool connects to no brokerage and places no live orders. "
@@ -107,7 +172,28 @@ def main() -> None:
         allow_network = data_mode.startswith("Live")
 
         st.divider()
-        st.header("2. Gaussian HMM Settings")
+        st.header("2. HMM Settings")
+        dist_label = st.radio(
+            "Emission Distribution",
+            options=["Gaussian", "Student-t (fat tails)"],
+            index=0,
+            horizontal=True,
+            help=(
+                "Gaussian treats every big day as strong evidence of a regime change. "
+                "Student-t expects occasional large moves inside any regime, so single shock days "
+                "are down-weighted and the detector should flip less often."
+            ),
+        )
+        distribution = "student_t" if dist_label.startswith("Student") else "gaussian"
+        df_nu = st.slider(
+            "Student-t Degrees of Freedom (nu)",
+            min_value=3,
+            max_value=30,
+            value=5,
+            step=1,
+            disabled=(distribution == "gaussian"),
+            help="Lower nu = fatter tails. Around 3-6 matches daily equity returns; 30 is close to Gaussian.",
+        )
         n_states = st.slider(
             "Number of Regimes (K)",
             min_value=2,
@@ -174,6 +260,11 @@ def main() -> None:
             "Overlay Biased Smoother Curve (`predict_proba` leak)",
             value=True,
         )
+        show_dist_compare = st.checkbox(
+            "Show Gaussian vs. Student-t Comparison",
+            value=True,
+            help="Fits both emission models (walk-forward, out-of-sample only) and compares them side by side. Roughly doubles compute on first load.",
+        )
 
     tickers = normalize_tickers(primary_ticker, defensive_list)
     prices_df, source_label = _cached_fetch_prices(tuple(tickers), period, allow_network)
@@ -185,6 +276,8 @@ def main() -> None:
         min_train_days=min_train_days,
         refit_every=refit_every,
         covariance_type=covariance_type,
+        distribution=distribution,
+        df_nu=float(df_nu),
     )
 
     if prob_mode.startswith("Walk-Forward"):
@@ -276,6 +369,31 @@ def main() -> None:
         f"**Sample Window:** `{features_df.index[0].strftime('%Y-%m-%d')}` to `{latest_date}` "
         f"(`{len(features_df):,}` trading days, `{source_label}`)."
     )
+
+    if show_dist_compare:
+        with st.spinner("Fitting Gaussian and Student-t walk-forward models for comparison..."):
+            cmp_df = _build_distribution_comparison(
+                prices_df=prices_df,
+                tickers=tickers,
+                vol_window=vol_window,
+                n_states=n_states,
+                min_train_days=min_train_days,
+                refit_every=refit_every,
+                covariance_type=covariance_type,
+                df_nu=float(df_nu),
+                regime_weights=edited_w_df,
+                sizing_mode=sizing_mode,
+                cost_bps=cost_bps,
+            )
+        st.markdown(
+            f"**Gaussian vs. Student-t Emissions (walk-forward, out-of-sample only; active: {DIST_LABELS[distribution]})**"
+        )
+        st.dataframe(cmp_df, use_container_width=True, hide_index=True)
+        st.caption(
+            "Fewer switches and whipsaws with similar or better Sharpe/drawdown means the fat-tailed model "
+            "is filtering out single-day shocks rather than missing real regime changes. "
+            "A whipsaw is a regime spell of 1-2 days that is entered and then exited."
+        )
 
     view_options = {
         "all": "All Sections",

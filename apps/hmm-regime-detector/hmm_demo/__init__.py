@@ -10,8 +10,11 @@ from .data import (
 )
 from .model import (
     HMMRegimeResult,
+    StudentTHMM,
     compute_regime_summary_table,
+    compute_switching_stats,
     fit_gaussian_hmm,
+    fit_student_t_hmm,
     forward_filter_proba,
     get_regime_metadata,
     sort_hmm_states_by_volatility,
@@ -40,8 +43,11 @@ __all__ = [
     "load_bundled_prices",
     "normalize_tickers",
     "HMMRegimeResult",
+    "StudentTHMM",
     "compute_regime_summary_table",
+    "compute_switching_stats",
     "fit_gaussian_hmm",
+    "fit_student_t_hmm",
     "forward_filter_proba",
     "get_regime_metadata",
     "sort_hmm_states_by_volatility",

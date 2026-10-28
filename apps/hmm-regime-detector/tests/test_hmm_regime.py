@@ -24,6 +24,7 @@ from hmm_demo import (
     default_regime_weights,
     fetch_prices,
     fit_gaussian_hmm,
+    fit_student_t_hmm,
     forward_filter_proba,
     generate_synthetic_prices,
     normalize_tickers,
@@ -245,3 +246,53 @@ def test_charts_and_helpers_build_cleanly():
     assert len(fig2.data) == 1
     assert len(fig3.data) == 3
     assert len(fig4.data) >= 8
+
+
+def test_student_t_hmm_fat_tail_robustness():
+    """
+    Verify StudentTHMM fits cleanly, sorts states by ascending volatility, preserves
+    zero look-ahead in forward_filter_proba, and resists single-day fat-tailed return
+    spikes during a calm regime better than GaussianHMM.
+    """
+    prices = generate_synthetic_prices(["SPY", "TLT", "GLD"], n_days=600, seed=42)
+    feat = compute_features(prices, primary_ticker="SPY", vol_window=20)
+    X = feat[["log_return", "rolling_vol"]].to_numpy().copy()
+
+    g_model = fit_gaussian_hmm(X, n_states=3, random_state=42)
+    t_model = fit_student_t_hmm(X, n_states=3, df_nu=5.0, estimate_nu=True, random_state=42)
+
+    assert np.all(np.diff(t_model.means_[:, 1]) >= -1e-12)
+    t_proba = forward_filter_proba(t_model, X)
+    np.testing.assert_allclose(t_proba.sum(axis=1), np.ones(len(X)), atol=1e-12)
+
+    # Inject a single-day -4.5% return shock on a calm bull day while rolling_vol remains calm
+    calm_indices = np.where((np.argmax(t_proba, axis=1) == 0) & (np.argmax(forward_filter_proba(g_model, X), axis=1) == 0))[0]
+    calm_idx = int(calm_indices[len(calm_indices) // 2])
+    X_spike = X.copy()
+    X_spike[calm_idx, 0] = -0.045  # single-day -4.5% outlier candle, rolling_vol unchanged
+
+    g_prob_spike = forward_filter_proba(g_model, X_spike)[calm_idx, 0]
+    t_prob_spike = forward_filter_proba(t_model, X_spike)[calm_idx, 0]
+
+    # Student-t emission retains higher probability of staying in the calm regime on an isolated 1-day spike
+    assert t_prob_spike > g_prob_spike
+
+    res_t = walk_forward_hmm_inference(
+        X, n_states=3, min_train_days=252, refit_every=126, distribution="student_t", df_nu=5.0
+    )
+    assert res_t.walk_forward_proba.shape == (len(X), 3)
+
+
+def test_switching_stats_counts_switches_and_whipsaws():
+    """A 1-day blip and a 2-day blip are whipsaws; a long spell is not; edge spells are excluded."""
+    from hmm_demo import compute_switching_stats
+
+    states = np.array([0] * 100 + [1] + [0] * 100 + [2, 2] + [0] * 100 + [1] * 50)
+    stats = compute_switching_stats(states)
+    assert stats["switches"] == 5.0
+    assert stats["whipsaws"] == 2.0
+    years = len(states) / 252.0
+    assert stats["switches_per_year"] == pytest.approx(5.0 / years)
+    assert compute_switching_stats(np.zeros(10, dtype=int))["switches"] == 0.0
+    # start offset drops the early blip
+    assert compute_switching_stats(states, start=150)["whipsaws"] == 1.0
