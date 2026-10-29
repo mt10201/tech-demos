@@ -17,22 +17,6 @@
       "slug": "hmm-regime-detector"
     },
     {
-      "id": "2114846165447455059",
-      "title": "gs-quant: Goldman Sachs open-source quant toolkit (offline timeseries risk analytics)",
-      "url": "https://x.com/ludoonchart/status/2114846165447455059",
-      "date": "2026-10-27",
-      "source": "new bookmark",
-      "slug": "gs-quant-risk-lab"
-    },
-    {
-      "id": "2113070670590480455",
-      "title": "TradingAgents (TauricResearch): multi-agent LLM trading desk where analysts, bull/bear researchers and a PM debate each decision",
-      "url": "https://x.com/carm1nee/status/2113070670590480455",
-      "date": "2026-10-28",
-      "source": "older bookmark",
-      "slug": "tradingagents-debate-desk"
-    },
-    {
       "id": "2113765239674032262",
       "title": "Vibe-Trading (HKUDS): natural-language multi-agent quant research + backtest robustness (Monte Carlo, bootstrap, walk-forward, 478-alpha zoo bench)",
       "url": "https://x.com/carm1nee/status/2113765239674032262",
@@ -63,6 +47,15 @@
       "url": "https://x.com/gregisenberg/status/2100229768385822812",
       "date": "2026-10-19",
       "slug": "build123d-param-cad"
+    },
+    {
+      "id": "2114846165447455059",
+      "title": "gs-quant: Goldman Sachs open-source quant toolkit (offline timeseries risk analytics)",
+      "url": "https://x.com/ludoonchart/status/2114846165447455059",
+      "date": "2026-10-27",
+      "source": "new bookmark",
+      "slug": "gs-quant-risk-lab",
+      "approved_by": "Portfolio Oversight"
     }
   ],
   "skipped": [
@@ -71,6 +64,16 @@
       "title": "Reverse-engineered TradingView Premium repo (piracy, not demo-able)",
       "url": "https://x.com/i/status/2112584468703977949",
       "date": "2026-10-22"
+    },
+    {
+      "id": "2113070670590480455",
+      "title": "TradingAgents (TauricResearch): multi-agent LLM trading desk where analysts, bull/bear researchers and a PM debate each decision",
+      "url": "https://x.com/carm1nee/status/2113070670590480455",
+      "date": "2026-10-28",
+      "source": "older bookmark",
+      "slug": "tradingagents-debate-desk",
+      "reason": "can't be honestly backtested (LLM training data leaks the future); per-run API cost",
+      "skipped_by": "Portfolio Oversight"
     }
   ]
 }
