@@ -31,15 +31,6 @@
       "date": "2026-10-28",
       "source": "older bookmark",
       "slug": "tradingagents-debate-desk"
-    },
-    {
-      "id": "2113765239674032262",
-      "title": "Vibe-Trading (HKUDS): natural-language multi-agent quant research + backtest robustness (Monte Carlo, bootstrap, walk-forward, 478-alpha zoo bench)",
-      "url": "https://x.com/carm1nee/status/2113765239674032262",
-      "date": "2026-10-29",
-      "source": "older bookmark",
-      "slug": "vibe-trading-robustness-lab",
-      "routed_to": "Portfolio Oversight"
     }
   ],
   "approved": [
@@ -71,6 +62,16 @@
       "title": "Reverse-engineered TradingView Premium repo (piracy, not demo-able)",
       "url": "https://x.com/i/status/2112584468703977949",
       "date": "2026-10-22"
+    },
+    {
+      "id": "2113765239674032262",
+      "title": "Vibe-Trading (HKUDS): natural-language multi-agent quant research + backtest robustness (Monte Carlo, bootstrap, walk-forward, 478-alpha zoo bench)",
+      "url": "https://x.com/carm1nee/status/2113765239674032262",
+      "date": "2026-10-29",
+      "source": "older bookmark",
+      "slug": "vibe-trading-robustness-lab",
+      "routed_to": "Portfolio Oversight",
+      "reason": "Portfolio Oversight: needs paid LLM calls, data not point-in-time, duplicates sleeves' own walk-forward/bootstrap tests"
     }
   ]
 }
