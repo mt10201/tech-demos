@@ -31,6 +31,15 @@
       "date": "2026-10-28",
       "source": "older bookmark",
       "slug": "tradingagents-debate-desk"
+    },
+    {
+      "id": "2113393903923581149",
+      "title": "Internet Archive API: free, keyless search and preview of public-domain films, 78rpm records and live concerts",
+      "url": "https://x.com/ElliotPadfield/status/2113393903923581149",
+      "date": "2026-10-30",
+      "source": "older bookmark",
+      "slug": "internet-archive-explorer",
+      "routed_to": "owner"
     }
   ],
   "approved": [
