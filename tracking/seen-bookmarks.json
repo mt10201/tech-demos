@@ -48,15 +48,6 @@
       "date": "2026-11-02",
       "source": "new bookmark",
       "routed_to": "owner"
-    },
-    {
-      "id": "2116169334058012944",
-      "title": "QuantJourney / quants.md: open Python strategy library + backtester (50 examples, walk-forward)",
-      "url": "https://x.com/RitOnchain/status/2116169334058012944",
-      "date": "2026-10-30",
-      "source": "older bookmark",
-      "slug": "quantjourney-strategy-lab",
-      "routed_to": "Portfolio Oversight"
     }
   ],
   "approved": [
@@ -98,6 +89,17 @@
       "slug": "vibe-trading-robustness-lab",
       "routed_to": "Portfolio Oversight",
       "reason": "Portfolio Oversight: needs paid LLM calls, data not point-in-time, duplicates sleeves' own walk-forward/bootstrap tests"
+    },
+    {
+      "id": "2116169334058012944",
+      "title": "QuantJourney / quants.md: open Python strategy library + backtester (50 examples, walk-forward)",
+      "url": "https://x.com/RitOnchain/status/2116169334058012944",
+      "date": "2026-10-30",
+      "source": "older bookmark",
+      "slug": "quantjourney-strategy-lab",
+      "routed_to": "Portfolio Oversight",
+      "reason": "Portfolio Oversight: catalog of ~50 strategies on non-point-in-time sample data invites strategy-shopping; existing frozen-rule backtest pipeline covers it",
+      "skipped_by": "Portfolio Oversight"
     }
   ]
 }
