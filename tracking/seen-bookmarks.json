@@ -48,6 +48,15 @@
       "date": "2026-11-02",
       "source": "new bookmark",
       "routed_to": "owner"
+    },
+    {
+      "id": "2116169334058012944",
+      "title": "QuantJourney / quants.md: open Python strategy library + backtester (50 examples, walk-forward)",
+      "url": "https://x.com/RitOnchain/status/2116169334058012944",
+      "date": "2026-10-30",
+      "source": "older bookmark",
+      "slug": "quantjourney-strategy-lab",
+      "routed_to": "Portfolio Oversight"
     }
   ],
   "approved": [
