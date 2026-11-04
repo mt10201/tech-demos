@@ -419,6 +419,37 @@ trade-control and weapons limits) and the FLUX.2 VAE (Apache-2.0, hosted in the 
 made through the hosted Space is OK. **The photo must be your own or cleared for commercial use.** A customer's
 photo needs their permission. See [`docs/photo_to_3d.md`](docs/photo_to_3d.md).
 
+## Photo → relief (pet portrait in a memorial-stone frame)
+
+![Photo → relief page](media/relief_photo.png)
+
+![Dog test: photo, front and 3/4](media/relief_dog_sheet.png)
+
+One front-facing pet photo → a raised bas-relief portrait in a rounded, chisel-textured stone slab with an arch niche
+(the Etsy "pet memorial stone" style). Everything runs on **CPU** with `onnxruntime` — no torch, no GPU, no account.
+
+1. **Background removal:** [BiRefNet-lite ONNX](https://huggingface.co/onnx-community/BiRefNet_lite-ONNX) — **MIT**.
+   Auto crop to head + chest (or set a manual crop box).
+2. **Depth:** [Depth Anything V2 **Small** ONNX](https://huggingface.co/onnx-community/depth-anything-v2-small) —
+   **Apache-2.0** (the Base/Large checkpoints are CC-BY-NC and are *not* used; Apple Depth Pro and BRIA RMBG are
+   non-commercial and are not used either).
+3. **Bas-relief:** gradient-domain depth compression (Poisson re-integration) so the nose doesn't dominate, mid-scale
+   form boost, feathered silhouette, a gated photo high-pass for eyes/nose/mouth (~0.6 mm), light smoothing.
+4. **Frame:** parametric slab (default 150 × 140 × 25 mm), rounded irregular trapezoid, 6 mm recessed arch niche,
+   optional hammered texture and engraved text; flat back.
+5. **Mesh:** height field on a 0.25 mm grid → manifold3d intersect with the outline → watertight, single shell,
+   genus 0, no undercuts (print face-up), checked against the 225 × 225 × 245 bed.
+
+```bash
+python scripts/photo_to_relief.py dog.jpg dog_relief.stl --text "Dog" --preview dog_relief.png
+# --relief 12 --detail 0.6 --compress 0.5 --width 150 --height 140 --thickness 25 --no-texture --crop x0,y0,x1,y1
+```
+
+Timing on 8 CPU cores: mask ≈ 9 s, depth ≈ 1.7 s, relief + mesh ≈ 2.5 s (≈ 15 s total; first run also downloads
+the weights, ≈ 310 MB, cached in `~/.cache/huggingface`). Added dependencies: `onnxruntime` (≈ 63 MB installed,
+pulls `flatbuffers`), `huggingface_hub` (≈ 5 MB, already pulled by `gradio_client`), `shapely` (≈ 3 MB).
+The photo must be your own or the customer's, with permission.
+
 ## Schauberger vortex (funnel · kudu horn · adapter)
 
 Mode ▸ **Schauberger vortex** builds three separate parts that fit together. Every one fits a 235 × 235 × 250 mm bed with a margin (envelope 225 × 225 × 245). STLs are in **millimetres**. The defaults are committed in [`assets/schauberger/`](assets/schauberger/) (`Schauberger_Funnel.stl` / `.step`, `Schauberger_Horn.stl`, `Schauberger_Adapter.stl`, `checks.json`).

@@ -45,14 +45,15 @@ MM = MM_PER_IN
 
 
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Schauberger vortex"], horizontal=True,
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai. "
                          "Black Madonna: a 4 in (101.6 mm) Chartres Black Madonna de Sous-Terre mold master. "
                          "Photo → master: repair any photo-to-3D or scan mesh into a printable mold master. "
                          "Photo → 3D (Idol): one photo → 3D via the hosted Idol Space → mold master. "
+                         "Photo → relief: pet photo → bas-relief portrait in a memorial-stone frame. "
                          "Schauberger vortex: hyperbolic funnel + kudu-horn whorl pipe + converging adapter.")
-if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Schauberger vortex"):
+if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex"):
     st.title("Rodin coil torus — groove lattice")
     st.caption(
         "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
@@ -83,6 +84,12 @@ if mode == "Photo → 3D (Idol)":
     import idol_page
 
     idol_page.render(idol_page.sidebar())
+    st.stop()
+
+if mode == "Photo → relief":
+    import relief_page
+
+    relief_page.render(relief_page.sidebar())
     st.stop()
 
 if mode == "Photo → master":

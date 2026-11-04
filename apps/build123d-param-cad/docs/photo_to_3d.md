@@ -53,3 +53,23 @@ non-commercial; the hosted Space avoids downloading it ourselves). Background re
   `scan_repair.scan_to_master`. That takes ~1 s plus ~11 s on CPU.
 - Test on the CC0 Smithsonian Hayes bust photo (NPG.76.27): 52 × 95 × 120 mm, 115,972 faces, watertight,
   single shell, Euler 2. The back of the head is inferred, so check it before casting.
+
+
+## Photo → relief (bas-relief, not full 3D)
+
+For pet portraits, a **bas-relief** from monocular depth is much sharper than single-image full-3D (Idol, TRELLIS…),
+because it only has to get the front surface right and the photo's own detail can be embossed. `relief.py` /
+`scripts/photo_to_relief.py` / the **Photo → relief** app mode.
+
+| Step | Model | Licence | Notes |
+|---|---|---|---|
+| Background | onnx-community/BiRefNet_lite-ONNX (ZhengPeng7/BiRefNet) | MIT | 1024², ≈ 9 s CPU |
+| Depth | onnx-community/depth-anything-v2-small | Apache-2.0 | 1036 px long side, ≈ 1.7 s CPU |
+| Rejected | Depth Anything V2 Base/Large | CC-BY-NC-4.0 | non-commercial |
+| Rejected | apple/DepthPro | apple-amlr | research only |
+| Rejected | BRIA RMBG 1.4/2.0 | non-commercial | |
+| Considered | prs-eth/marigold-depth-v1-1 (openrail++), Lotus (Apache-2.0) | | need torch + diffusers, minutes on CPU |
+
+Limits: the depth is *relative* and inferred, so ears/side profile are approximate; dark markings in the fur
+(freckles, spots) can emboss as small pits — lower **Fine detail** to smooth them; at 0.25 mm the steep niche wall and
+silhouette show tiny height-field steps in grazing renders (below a 0.2 mm print layer).
