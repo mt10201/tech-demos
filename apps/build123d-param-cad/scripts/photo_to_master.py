@@ -6,7 +6,7 @@
 Takes the mesh from ANY image-to-3D tool (TRELLIS.2, Hunyuan3D, UniForge3D, Meshy, Tripo, ...) or a
 photogrammetry scan and runs scan_repair.scan_to_master: orient + scale to --height mm, patch holes,
 volumetric closing, flat base, single piece, no cavities, tunnels plugged (genus 0), marching cubes,
-manifold3d simplify; then checks watertight single shell, Euler 2 and the Ender 2 bed (150x150x200).
+manifold3d simplify; then checks watertight single shell, Euler 2 and the bed (225x225x245).
 No GPU / torch needed. Check the generator's licence before selling castings (see docs/photo_to_3d.md).
 
 --damage-demo first punches holes, flips faces and adds debris + an internal bubble (to show the repair
@@ -45,9 +45,9 @@ def main(argv=None):
         return 1
     out.export(a.out)
     print(f"wrote {a.out}: {rep.faces} triangles, {rep.extents_mm} mm, {rep.volume_cm3} cm3, "
-          f"Euler {rep.euler}, fits Ender 2: {rep.fits_bed}")
+          f"Euler {rep.euler}, fits bed: {rep.fits_bed}")
     if not rep.fits_bed:
-        print("WARNING: does not fit the Ender 2 bed (150x150x200); lower --height", file=sys.stderr)
+        print("WARNING: does not fit the bed (225x225x245); lower --height", file=sys.stderr)
     if a.preview:
         sr._decimate(out, 0.15).export(a.preview)
     return 0

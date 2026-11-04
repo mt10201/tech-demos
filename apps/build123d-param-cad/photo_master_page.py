@@ -46,7 +46,7 @@ def sidebar():
                                  help="Punch 4 holes, flip 5 % of faces, duplicate 2 %, add floating debris "
                                       "and an internal bubble, i.e. what typical image-to-3D output looks like.")
     default_h = 101.6 if source == MADONNA_NAME else 120.0
-    h = st.sidebar.slider("Master height (mm)", 30.0, 190.0, float(default_h), 0.2)
+    h = st.sidebar.slider("Master height (mm)", 30.0, 245.0, float(default_h), 0.2)
     up_default = "+y" if (upload is not None and upload.name.lower().endswith((".glb", ".gltf"))) else "+z"
     up = st.sidebar.selectbox("Up axis of the input", list(sr.AXES), index=list(sr.AXES).index(up_default))
     vox = st.sidebar.select_slider("Voxel size (mm)", [0.3, 0.4, 0.5, 0.6, 0.8, 1.0], value=0.6,
@@ -117,7 +117,7 @@ def render(choice) -> None:
     st.caption(
         "For the output of image-to-3D tools (TRELLIS.2, Hunyuan3D, Meshy, UniForge3D…) and phone scans: "
         "orient, scale to mm, patch holes, drop debris, fill bubbles, close thin slots, plug tunnels, cut a flat "
-        "base, then check **watertight single shell, genus 0, fits the Ender 2**. CPU only (numpy / scipy / "
+        "base, then check **watertight single shell, genus 0, fits the 225×225×245 mm bed**. CPU only (numpy / scipy / "
         "scikit-image / manifold3d); the same code runs as `scripts/photo_to_master.py`.")
     if not p.source:
         st.info("Choose a mesh file in the sidebar.")
@@ -134,7 +134,7 @@ def render(choice) -> None:
                 delta_color="normal" if rep.ok() else "inverse")
     x, y, z = rep.extents_mm
     c[1].metric("Size X × Y × Z (mm)", f"{x:.1f} × {y:.1f} × {z:.1f}",
-                delta="fits Ender-2 150×150×200" if rep.fits_bed else "too big for the bed",
+                delta="fits bed 225×225×245" if rep.fits_bed else "too big for the bed",
                 delta_color="normal" if rep.fits_bed else "inverse")
     c[2].metric("Volume", f"{rep.volume_cm3:.0f} cm³", help="≈ resin / plaster per casting")
     c[3].metric("Input defects", f"{rep.input_boundary_loops} holes · {rep.input_pieces} pieces",

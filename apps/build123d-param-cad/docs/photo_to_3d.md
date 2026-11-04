@@ -26,7 +26,7 @@ the repair pass below before it is a printable mold master. Check every dependen
 Takes *any* mesh (AI image-to-3D GLB, phone scan, Sketchfab download) and makes a mold master:
 orient → scale to a height in mm → patch holes → voxel closing (fills slots narrower than ~2 × `--close`)
 → flat base → keep the largest piece, fill bubbles, plug tunnels until genus 0 → marching cubes →
-manifold3d decimation → checks (watertight, single shell, Euler 2, fits the Ender 2 150 × 150 × 200).
+manifold3d decimation → checks (watertight, single shell, Euler 2, fits a 225 × 225 × 245 bed).
 CPU only, uses existing requirements.
 
 ```bash
@@ -37,3 +37,19 @@ python scripts/photo_to_master.py assets/hayes_bust_npg_cc0.ply out.stl --damage
 Demo (CC0 Hayes bust, 4 punched holes, 5 % flipped and 2 % duplicated faces, 3 debris spheres, an internal
 bubble): rebuilt in ~4 s at 0.6 mm voxels / ~12 s at 0.4 mm; 120 mm tall, ≈ 98 × 59 × 120 mm,
 watertight, 1 shell, Euler 2, fits the bed.
+
+## Idol (speridlabs): added as "Photo → 3D (Idol)"
+
+[Idol](https://huggingface.co/spaces/speridlabs/idol) turns one image into a 3D Gaussian splat. Its code and
+weights are Apache-2.0. Image encoders: DINOv3 (licence allows commercial use, with trade-control and weapons
+limits) and the FLUX.2 VAE (the VAE is Apache-2.0, but it ships inside the gated FLUX.2-dev repo, whose gate is
+non-commercial; the hosted Space avoids downloading it ourselves). Background removal is BiRefNet (MIT).
+
+- The free ZeroGPU Space answered in **~29 s** per photo, reached with `gradio_client` (`api_name="/run"`,
+  "Real photo", 50 steps, cfg 3.0, 524,288 Gaussians). It needs no account or install, but it can be queued or
+  run out of quota; `idol_photo.IdolSpaceError` reports that clearly.
+- **Route.** splat2stl (MIT) was tried. Taking the raw splat centres gave more detail: opacity = sigmoid(logit) > 0.3,
+  convert -Y up to Z up, trim to the 0.2–99.8 percentile, scale to height, mesh a 1 mm occupancy grid, then
+  `scan_repair.scan_to_master`. That takes ~1 s plus ~11 s on CPU.
+- Test on the CC0 Smithsonian Hayes bust photo (NPG.76.27): 52 × 95 × 120 mm, 115,972 faces, watertight,
+  single shell, Euler 2. The back of the head is inferred, so check it before casting.

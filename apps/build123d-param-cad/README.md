@@ -375,7 +375,7 @@ error otherwise.
 The **Photo → master** mode takes the output of image-to-3D tools (TRELLIS.2, Hunyuan3D, Meshy, UniForge3D…)
 or a phone scan and makes a mold master. It orients and scales to mm, patches holes, drops debris, fills
 bubbles, closes thin slots, plugs tunnels (genus 0), cuts a flat base, then checks for a **watertight single
-shell, Euler 2, fits the Ender 2**. It runs on CPU with the existing requirements
+shell, Euler 2, fits a 225 × 225 × 245 bed** (the 235 × 235 × 250 envelope used by the vortex parts). It runs on CPU with the existing requirements
 ([`scan_repair.py`](scan_repair.py)). The bundled sample is the **CC0** Smithsonian NPG plaster bust of
 Rutherford B. Hayes (Olin Levi Warner, 1876, [`assets/ATTRIBUTION.md`](assets/ATTRIBUTION.md)). *Simulate AI
 / scan defects* punches holes and adds flipped and duplicate faces, debris and a bubble, so you can watch the repair.
@@ -384,13 +384,40 @@ Rutherford B. Hayes (Olin Levi Warner, 1876, [`assets/ATTRIBUTION.md`](assets/AT
 python scripts/photo_to_master.py model.glb master.stl --height 120            # glTF assumed +Y up (--up to change)
 python scripts/photo_to_master.py assets/hayes_bust_npg_cc0.ply /tmp/hayes.stl --damage-demo --voxel 0.6
 # -> 4 holes patched, 3 debris pieces dropped, 130,624 triangles, 98.3 × 58.8 × 120 mm, 130.6 cm³,
-#    watertight, Euler 2, fits Ender 2 — 4.5 s on 8 CPUs (0.4 mm voxels: ~12 s)
+#    watertight, Euler 2, fits bed 225×225×245 — 4.5 s on 8 CPUs (0.4 mm voxels: ~12 s)
 ```
 
 **UniForge3D was not added.** Its code is MIT, but the weights are **CC BY-NC 4.0** (from VGGT-1B), its
 background remover (RMBG-2.0) and nvdiffrast are non-commercial, and it needs CUDA (torch cu124, flash-attn).
 That rules it out for selling castings and for this CPU box. See [`docs/photo_to_3d.md`](docs/photo_to_3d.md),
 which also covers the MIT-licensed TRELLIS.2 (≥ 24 GB GPU) as a commercial-safe generator to feed this mode.
+
+## Photo → 3D (Idol): one photo → printable mold master
+
+![photo to 3D with Idol](media/idol_photo.png)
+
+Mode ▸ **Photo → 3D (Idol)**: upload one photo of one object, set the height (default 120 mm) and the voxel size.
+The app sends the photo to the free official [Idol Space](https://huggingface.co/spaces/speridlabs/idol)
+(`speridlabs/idol`, "Real photo" mode, via `gradio_client`; nothing to install, no account, no GPU or torch here).
+That gives back a 3D Gaussian splat. The app keeps the opaque splat centres (opacity > 0.3), scales them to the
+height, voxelises and meshes them, then runs the **Photo → master** repair. Checks: watertight, single shell,
+Euler 2, fits 225 × 225 × 245. You get a 3D preview and the STL. Code: [`idol_photo.py`](idol_photo.py).
+
+```bash
+python scripts/photo_to_idol_master.py photo.jpg out.stl --height 120               # calls the Idol Space (~30 s)
+python scripts/photo_to_idol_master.py photo.jpg out.stl --keep-splat photo.ply     # also save the splat
+python scripts/photo_to_idol_master.py --splat photo.ply out.stl --height 150       # re-run offline from a saved splat
+# Hayes bust photo (CC0) -> 52 x 95 x 120 mm, ~116k faces, watertight, Euler 2, fits bed (~30 s Space + ~11 s CPU)
+```
+
+Options: `--voxel` (0.4 mm default, smaller means more detail), `--close` (0.8 mm), `--base-cut` (2 mm),
+`--gaussians` (`524,288` default), `--seed` (42). Exit code 2 means the Space is down, queued or out of
+ZeroGPU quota; the app shows the same message. Try again in a few minutes.
+
+**Licence.** Idol's code and weights are Apache-2.0. Its encoders are DINOv3 (commercial use allowed, with
+trade-control and weapons limits) and the FLUX.2 VAE (Apache-2.0, hosted in the Space). So selling castings
+made through the hosted Space is OK. **The photo must be your own or cleared for commercial use.** A customer's
+photo needs their permission. See [`docs/photo_to_3d.md`](docs/photo_to_3d.md).
 
 ## Schauberger vortex (funnel · kudu horn · adapter)
 

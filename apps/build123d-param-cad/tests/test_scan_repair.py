@@ -45,9 +45,13 @@ def test_torus_tunnel_is_plugged_to_genus_0():
 
 
 def test_fits_bed_allows_a_quarter_turn():
-    assert sr.fits_bed(trimesh.creation.box((160, 100, 50))) is False
-    assert sr.fits_bed(trimesh.creation.box((100, 140, 190)))
-    assert not sr.fits_bed(trimesh.creation.box((100, 100, 210)))
+    # default bed 225x225x245
+    assert sr.fits_bed(trimesh.creation.box((220, 100, 240)))
+    assert not sr.fits_bed(trimesh.creation.box((230, 100, 50)))
+    assert not sr.fits_bed(trimesh.creation.box((100, 100, 250)))
+    # quarter turn on a non-square bed
+    assert sr.fits_bed(trimesh.creation.box((100, 140, 190)), bed=(150, 100, 200))
+    assert not sr.fits_bed(trimesh.creation.box((160, 100, 50)), bed=(150, 100, 200))
 
 
 def test_bundled_sample_is_cc0_hayes_and_loads():

@@ -10,3 +10,4 @@ pillow>=10.0.0
 manifold3d>=3.0
 scikit-image>=0.22
 bd_warehouse>=0.4.0
+gradio_client>=1.3

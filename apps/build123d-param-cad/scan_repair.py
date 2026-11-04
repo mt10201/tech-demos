@@ -10,7 +10,7 @@ bubbles, self-intersections, thin slots that form tunnels, an open or ragged bot
   narrower than ~2 x close_mm) -> flat base (cut base_cut_mm off the bottom) -> keep the largest
   piece, fill internal cavities, plug tunnels (genus 0: one continuous master, no holes or tunnels)
   -> marching cubes -> optional decimation (manifold3d) -> checks: watertight single shell, Euler 2,
-  fits the Ender 2 bed.
+  fits the 225 x 225 x 245 mm bed.
 
 No torch / GPU: numpy, scipy, scikit-image, trimesh and manifold3d (all already app requirements).
 """
@@ -25,7 +25,8 @@ from scipy import ndimage as ndi
 from scipy.spatial import cKDTree
 from skimage.measure import marching_cubes
 
-ENDER2_BED_MM = (150.0, 150.0, 200.0)
+BED_MM = (225.0, 225.0, 245.0)   # usable volume on the owner's 235x235x250 bed
+ENDER2_BED_MM = BED_MM           # old name, kept for compatibility
 AXES = {"+x": (1, 0, 0), "-x": (-1, 0, 0), "+y": (0, 1, 0), "-y": (0, -1, 0), "+z": (0, 0, 1), "-z": (0, 0, -1)}
 
 
@@ -254,7 +255,7 @@ def scan_to_master(mesh: trimesh.Trimesh, height_mm: float = 120.0, up: str = "+
     rep.fits_bed = fits_bed(out)
     rep.seconds = round(time.time() - t0, 1)
     say(f"master {rep.faces} faces, watertight={rep.watertight}, volume={rep.is_volume}, euler={rep.euler}, "
-        f"extents {rep.extents_mm} mm, fits Ender 2: {rep.fits_bed}")
+        f"extents {rep.extents_mm} mm, fits bed 225x225x245: {rep.fits_bed}")
     return out, rep
 
 
@@ -266,7 +267,7 @@ def _voxel_euler(b: np.ndarray) -> int:
     return 2 * int(euler_number(np.pad(b, 1), connectivity=1))
 
 
-def fits_bed(m: trimesh.Trimesh, bed=ENDER2_BED_MM) -> bool:
+def fits_bed(m: trimesh.Trimesh, bed=BED_MM) -> bool:
     """Fits upright, or after a 90 deg turn about Z."""
     x, y, z = m.extents
     return bool(z <= bed[2] and ((x <= bed[0] and y <= bed[1]) or (y <= bed[0] and x <= bed[1])))
