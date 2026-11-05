@@ -1,0 +1,3 @@
+streamlit>=1.41,<2
+# Official Agent Reach release only. The similarly named PyPI package is unrelated.
+agent-reach @ https://github.com/Panniantong/Agent-Reach/releases/latest/download/agent-reach.zip
