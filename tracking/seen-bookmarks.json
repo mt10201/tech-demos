@@ -40,14 +40,6 @@
       "source": "older bookmark",
       "slug": "internet-archive-explorer",
       "routed_to": "owner"
-    },
-    {
-      "id": "2117243034693714299",
-      "title": "MoneyPrinterTurbo: open-source topic-to-short-video generator (script, stock footage, voiceover, subtitles, BGM)",
-      "url": "https://x.com/arceyul/status/2117243034693714299",
-      "date": "2026-11-02",
-      "source": "new bookmark",
-      "routed_to": "owner"
     }
   ],
   "approved": [
@@ -93,6 +85,17 @@
       "routed_to": "owner",
       "repo": "https://github.com/Panniantong/Agent-Reach",
       "note": "Approved by owner on 2026-11-05"
+    },
+    {
+      "id": "2117243034693714299",
+      "title": "MoneyPrinterTurbo: open-source topic-to-short-video generator (script, stock footage, voiceover, subtitles, BGM)",
+      "url": "https://x.com/arceyul/status/2117243034693714299",
+      "date": "2026-11-02",
+      "source": "new bookmark",
+      "routed_to": "owner",
+      "slug": "moneyprinter-short-video-lab",
+      "note": "Owner approved Nov 5, 2026; built as MoneyPrinterTurbo short-video lab (PR #10).",
+      "approved_at": "2026-11-05"
     }
   ],
   "skipped": [
