@@ -58,6 +58,16 @@
       "slug": "agent-reach-explorer",
       "routed_to": "owner",
       "repo": "https://github.com/Panniantong/Agent-Reach"
+    },
+    {
+      "id": "2051998109547614700",
+      "title": "Graphify: turn a codebase (plus docs/PDFs) into a local, queryable knowledge graph via tree-sitter AST (pip install graphifyy)",
+      "url": "https://x.com/TechFlow99/status/2051998109547614700",
+      "date": "2026-11-05",
+      "source": "older bookmark",
+      "slug": "graphify-repo-map",
+      "routed_to": "owner",
+      "repo": "https://github.com/Graphify-Labs/graphify"
     }
   ],
   "approved": [
