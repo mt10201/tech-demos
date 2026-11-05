@@ -48,16 +48,6 @@
       "date": "2026-11-02",
       "source": "new bookmark",
       "routed_to": "owner"
-    },
-    {
-      "id": "2117687388214272339",
-      "title": "Agent Reach: Python CLI that gives AI agents free search/read across GitHub, YouTube, Reddit, Bilibili, V2EX and more (no API fees)",
-      "url": "https://x.com/thegreatest_sv/status/2117687388214272339",
-      "date": "2026-11-04",
-      "source": "new bookmark",
-      "slug": "agent-reach-explorer",
-      "routed_to": "owner",
-      "repo": "https://github.com/Panniantong/Agent-Reach"
     }
   ],
   "approved": [
@@ -91,6 +81,17 @@
       "slug": "graphify-repo-map",
       "routed_to": "owner",
       "repo": "https://github.com/Graphify-Labs/graphify",
+      "note": "Approved by owner on 2026-11-05"
+    },
+    {
+      "id": "2117687388214272339",
+      "title": "Agent Reach: Python CLI that gives AI agents free search/read across GitHub, YouTube, Reddit, Bilibili, V2EX and more (no API fees)",
+      "url": "https://x.com/thegreatest_sv/status/2117687388214272339",
+      "date": "2026-11-04",
+      "source": "new bookmark",
+      "slug": "agent-reach-explorer",
+      "routed_to": "owner",
+      "repo": "https://github.com/Panniantong/Agent-Reach",
       "note": "Approved by owner on 2026-11-05"
     }
   ],
