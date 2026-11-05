@@ -1,0 +1,7 @@
+streamlit>=1.40
+networkx>=3.3
+pyvis>=0.3.2
+tiktoken>=0.8
+graphifyy==0.9.103
+pytest>=8.0
+playwright>=1.50  # optional media capture
