@@ -172,6 +172,15 @@ def test_photo_lattice_has_12_per_direction():
     assert np.allclose(paths[0][:, 1], -paths[12][:, 1])
 
 
+def test_groove_count_and_scaled_u_profile_are_parametric():
+    p = TorusParams(n_grooves=6, groove_width=0.1, groove_depth=0.1)
+    paths = all_paths(p, 181)
+    assert len(paths) == 12
+    assert start_angles_deg(p) == pytest.approx([60.0 * i for i in range(6)])
+    assert p.groove_depth == p.groove_width
+    assert cutter_radius(p) == pytest.approx(0.05)
+
+
 def test_photo_constant_pitch_sweep():
     p = TorusParams()
     pts = groove_path(p, 0, 721)

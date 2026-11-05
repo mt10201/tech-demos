@@ -300,8 +300,9 @@ def describe_formula(p: TorusParams | None = None) -> str:
         "point(θ,φ) = ((R + ρ cos θ) cos φ, (R + ρ cos θ) sin φ, ρ sin θ)\n"
         "Profile (true 3D): depth(t) = (d − ρ) + √(ρ² − t²) for |t| < w/2, t = 3D distance\n"
         "  to the surface centre-line;  ρ = w/2 (U-groove / semicircle) or (w²/4+d²)/(2d)\n"
-        f"Photo replica: φ = φ₀ ± ({sweep:.0f}°/180°)·θ, θ 0→360°, 12 grooves per sign\n"
-        "  φ₀ = rotation + i·30°  → crisscross lattice, rhombus tiles\n"
+        f"Photo replica: φ = φ₀ ± ({sweep:.0f}°/180°)·θ, θ 0→360°, "
+        f"{p.n_grooves if p else 12} grooves per sign\n"
+        f"  φ₀ = rotation + i·{360 / (p.n_grooves if p else 12):g}°  → crisscross lattice, rhombus tiles\n"
         "Golden: front half φ = φ₀ + (π/2)·log_φ(q_max/q), q = R + r cos θ\n"
         "  back half rodin → 510° per wrap (150° skip), mirror → same spiral"
     )

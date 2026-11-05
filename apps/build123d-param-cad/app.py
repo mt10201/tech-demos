@@ -127,12 +127,24 @@ with st.sidebar:
         r = st.number_input("Tube radius r (mm)", 3.0, 75.0, round(cubit_radius_in(CUBIT_TUBE_FRACTION) * MM, 3),
                             0.5, format="%.3f") / MM
     st.header("Grooves")
+    n_grooves = st.slider(
+        "Grooves per direction", 1, 24, 12, 1,
+        help="Photo replica uses this many grooves in each direction (12 = 24 total). "
+             "Fewer, wider-spaced grooves are easier to print on small tori.",
+    )
     width = st.slider("Groove width (in, true 3D; 0.125\" = 3.175 mm)", 0.0625, 0.5, 0.125, 1 / 64, format="%.4f")
+    match_depth = st.checkbox(
+        "Match depth to width (U profile)", value=True,
+        help="Keeps a constant U profile as the width changes. Turn off to set depth independently.",
+    )
     depth = st.slider(
         "Groove depth (in; 0.125\" = 3.175 mm)", 0.03125, 0.25, 0.125, 1 / 64, format="%.4f",
+        disabled=match_depth,
         help="depth > width/2 → U-groove (semicircle bottom + straight walls); "
              "depth = width/2 → semicircle; depth < width/2 → shallow arc.",
     )
+    if match_depth:
+        depth = width
     sweep = PHOTO_SWEEP_DEG
     if pattern == "photo":
         sweep = st.slider(
@@ -152,7 +164,7 @@ with st.sidebar:
 try:
     params = TorusParams(
         major_radius=R, tube_radius=r, groove_depth=depth, groove_width=width,
-        pattern=pattern, sweep_deg=sweep, handedness=hand, rotation_deg=rotation,
+        n_grooves=n_grooves, pattern=pattern, sweep_deg=sweep, handedness=hand, rotation_deg=rotation,
     )
     top, bottom = sweeps(params)
 except ValueError as exc:

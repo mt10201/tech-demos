@@ -570,3 +570,14 @@ python capture.py schauberger
    - **[`rodin_torus.py`](rodin_torus.py)** builds the build123d B-rep (`Solid.make_torus`, `Solid.sweep` of the U face along `Edge.make_spline`) and `finished_solid()` for the subtracted STEP.
    - `torus_mesh.py` is the older heightfield mesher, kept for comparison and tests.
 4. **Learn build123d** at the docs: https://build123d.readthedocs.io (Tutorials, then *Builders* vs *Algebra*). Swap `Circle` for another profile, e.g. `Rectangle` for square channels, or `Solid.make_torus` for any other base solid.
+
+### 70 mm revised groove options
+
+The sidebar exposes **grooves per direction** and **match depth to width**. The latter keeps the U profile at equal width and depth; defaults remain 12 + 12 and 3.175 mm, so the 100/125 mm listing models are unchanged.
+
+- **70 mm, 12 + 12:** 1.6 mm wide × 1.6 mm deep; minimum same-direction wall **3.10 mm** at the inner hole (2.0 mm would leave only 2.70 mm).
+- **70 mm pendant, 6 + 6:** 2.5 mm wide × 2.5 mm deep; minimum wall **6.93 mm**. The wider spacing avoids the crowded centre, while the U profile is no wider than the original support-free 3.175 mm groove.
+
+Both are watertight single bodies of genus 1, in mm, with their lowest point at z = 0. Rebuild with `python scripts/export_rodin_70mm_v2.py [output_dir]`.
+
+![70 mm torus groove comparison](media/rodin_70mm_v2_comparison.png)
