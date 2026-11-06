@@ -176,7 +176,8 @@ def render_mold() -> None:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Plate Ø × t", f"{d.plate_d:.1f} × {d.plate_t:.1f} mm")
     c2.metric("Frame ID / OD / H", f"{d.frame_id:.1f} / {d.frame_od:.1f} / {d.frame_len:.1f} mm")
-    c3.metric("Silicone side / top", f"{d.silicone_side_mm:.1f} / {d.top_cover_mm:.1f} mm")
+    c3.metric("Silicone side / top", f"{d.silicone_side_mm:.1f} / {d.top_cover_mm:.1f} mm",
+              help=f"Actual top cover above exposed head {d.exposed_head_mm:.1f} mm (statue {d.statue_height_mm:.1f} with {d.statue_sink_mm:.1f} mm plate sink); fill {d.fill_above_plate_mm:.1f} mm. OVER_APEX param={d.over_apex_param_mm:.1f}.")
     c4.metric("Silicone (est.)", f"{d.silicone_ml:.0f} ml",
               help=f"π·(ID/2)²·(H+{moai_mold.OVER_APEX}) − statue volume")
     st.caption(

@@ -219,9 +219,9 @@ def eye_report(m: trimesh.Trimesh) -> dict:
                 n_gt_0_4mm=int((fwd > 0.4).sum()),
             ),
             interpretation=(
-                "No multi-mm isolated blob in mesh; local forward spikes <= ~1 mm on both eyes. "
-                "Printed 'large blobby patch' is not matched by a clear mesh protrusion; "
-                "treat as possible print/seam/support artifact until a print close-up is provided."
+                "Absent multi-mm isolated blob in either eye mesh (local forward spikes <= ~1 mm). "
+                "A print close-up photo is required to diagnose any large printed eye defect; "
+                "this report does not attribute cause to print/seam/support."
             ),
         )
     L = one("statue_left_eye (+X, viewer_right when facing front)", 6, 22)
@@ -260,7 +260,7 @@ def mesh_quality(m: trimesh.Trimesh) -> dict:
         extents_mm=np.round(m.extents, 3).tolist(),
         bounds_mm=np.round(m.bounds, 3).tolist(),
         edge_valence=None,
-        self_intersection_note="full triangle-triangle SI not run (too heavy); manifold roundtrip + nonmanifold edge check used",
+        self_intersection_note="Full triangle-triangle self-intersection test NOT run (too heavy). Evidence: watertight+winding+euler+boundary/nonmanifold+manifold3d. Do not claim intersection-free beyond that.",
     )
     edges = m.edges_sorted
     _, cnt = np.unique(edges, axis=0, return_counts=True)
@@ -339,7 +339,7 @@ def build_mold(statue: trimesh.Trimesh):
     silicone_ml = (cav - statue_vol) / 1000.0
     # min side wall: frame inner radius - max_r
     side_clear = frame_id / 2 - max_r
-    top_cover = OVER_APEX
+    top_cover = OVER_APEX + SINK  # actual cover above exposed head = 6.5
 
     dims = dict(
         max_r_mm=round(max_r, 3),
@@ -364,7 +364,7 @@ def build_mold(statue: trimesh.Trimesh):
         cavity_ml=round(cav / 1000.0, 1),
         statue_cm3=round(statue_vol / 1000.0, 2),
         silicone_ml=round(silicone_ml, 1),
-        volume_derivation="pi*(frame_id/2)^2*(H+over_apex) - statue_volume; plate/lip outside frame excluded",
+        volume_derivation="pi*(frame_id/2)^2*(H+over_apex) - statue_volume_z_ge_0; actual top cover = OVER_APEX+SINK=6.5",
         proven_source="electroculture_tower_v3 (0.25/side + vertical lip + glue channel)",
         statue_sink_into_plate_mm=SINK,
     )
