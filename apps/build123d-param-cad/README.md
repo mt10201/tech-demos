@@ -159,10 +159,16 @@ STL: watertight (also after slicer vertex merge), built in about 4 s. STEP: **Pr
 
 ## Moai statue (side part)
 
-Mode **Moai statue** in the sidebar has two models:
+Mode **Moai statue** in the sidebar has these models:
 
-- **Real scan: Quarry Moai head** (default): a silicone mold master made from a photogrammetry scan of a
-  real Rano Raraku quarry moai. Download `moai_head_scan_152mm.stl`.
+- **Real scan: Quarry Moai head (original)** (default): a silicone mold master made from a photogrammetry scan of a
+  real Rano Raraku quarry moai. Download `moai_head_scan_152mm.stl` (asset bytes preserved across v1).
+- **Refined scan v1 (ear/top blend)**: same 152.4 mm head; localized Laplacian soften of ear-front and crown hard
+  lines only (face protected). Download `moai_head_scan_152mm_v1_blend.stl`.
+- **Mold tooling v1**: integral circular tooling plate + detachable cylindrical pour frame using the proven
+  tower v3 seating (0.25 mm/side clearance, 1.6 mm groove, vertical outer sealing lip + glue-bead channel,
+  ≥10 mm side silicone, 6 mm top cover). Soft silicone Shore 10–20A; brow/nose/chin undercuts remain — prefer
+  a release slit or ear-line two-piece mold. No vents. Downloads via the app (statue / master / frame).
 - **Parametric (full statue)**: the stylised head-and-torso statue described further below. Download
   `moai_152mm.stl`.
 

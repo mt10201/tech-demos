@@ -104,3 +104,19 @@ views of the Chartres *Madonna de Sous-Terre* statue:
      `z ≥ 0` for a flat base, 3D cavity-filled and 2D slice tunnel-plugged across all three axes, extracted with
      marching cubes, and decimated with `manifold3d` (`simplify_mm = 0.025`) to **68,246 triangles** (`41.93 × 45.92 × 101.60 mm`,
      watertight, single body, **Euler characteristic 2 / genus 0**).
+
+
+---
+
+# Attribution: moai_head_scan_152mm_v1_blend.stl (+ mold tooling exports)
+
+Same source as `moai_head_scan_152mm.stl` (Ryan Shackleton, CC BY 4.0). Additional changes in v1:
+
+- Localized Laplacian blend of hard ear-front creases and the crown/top hard line only.
+- Face region protected (measured protected-face displacement = 0 mm); recognizable ears retained.
+- Original `moai_head_scan_152mm.stl` bytes/hash preserved unchanged.
+- Optional mold tooling (integral circular plate + cylindrical pour frame) reuses the electroculture
+  tower v3 seating: 0.25 mm/side clearance, 1.6 mm groove, vertical outer sealing lip and glue-bead
+  channel. Tooling base is not a cast pedestal. No vents.
+
+Processing script: `scripts/build_moai_mold_v1.py`.

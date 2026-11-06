@@ -15,6 +15,8 @@ import numpy as np
 ASSETS = Path(__file__).resolve().parent / "assets"
 SCAN_STL = ASSETS / "moai_head_scan_152mm.stl"
 SCAN_PREVIEW = ASSETS / "moai_head_scan_preview.ply"
+BLEND_STL = ASSETS / "moai_head_scan_152mm_v1_blend.stl"
+BLEND_PREVIEW = ASSETS / "moai_head_scan_152mm_v1_blend_preview.ply"
 SCAN_HEIGHT_MM = 152.4  # height of the committed STL
 
 TITLE = "Quarry Moai - Rapa Nui/Easter Island"
@@ -59,3 +61,22 @@ def stl_bytes(height_mm: float = SCAN_HEIGHT_MM) -> bytes:
 
 def file_name(height_mm: float) -> str:
     return f"moai_head_scan_{height_mm:.0f}mm.stl"
+
+
+def blend_mesh(height_mm: float = SCAN_HEIGHT_MM, preview: bool = False):
+    """Ear/top-blended v1 head (same pose/scale as head_mesh). Original SCAN_STL is unchanged."""
+    v, f = _load(str(BLEND_PREVIEW if preview else BLEND_STL))
+    v = v - [0.5 * (v[:, 0].max() + v[:, 0].min()), 0.5 * (v[:, 1].max() + v[:, 1].min()), v[:, 2].min()]
+    return v * (height_mm / np.ptp(v[:, 2])), f
+
+
+def blend_stl_bytes(height_mm: float = SCAN_HEIGHT_MM) -> bytes:
+    if abs(height_mm - SCAN_HEIGHT_MM) < 1e-9:
+        return BLEND_STL.read_bytes()
+    import trimesh
+    v, f = blend_mesh(height_mm)
+    return trimesh.Trimesh(v, f, process=False).export(file_type="stl")
+
+
+def blend_file_name(height_mm: float) -> str:
+    return f"moai_head_scan_{height_mm:.0f}mm_v1_blend.stl"
