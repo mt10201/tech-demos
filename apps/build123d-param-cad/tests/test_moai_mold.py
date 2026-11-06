@@ -142,3 +142,16 @@ def test_silicone_side_at_least_10mm():
     d = moai_mold.dims_for()
     assert d.silicone_side_mm >= 10.0 - 1e-6
     assert d.silicone_ml > 1000
+
+
+def test_review_candidate_labels_and_original_default():
+    import moai_page
+    import inspect
+    assert "REVIEW CANDIDATE" in moai_page.BLEND
+    assert "REVIEW CANDIDATE" in moai_page.MOLD
+    assert "not recommended for reprinting" in moai_page.BLEND
+    assert "not recommended for reprinting" in moai_page.MOLD
+    sidebar = inspect.getsource(moai_page.sidebar)
+    assert "[SCAN, BLEND, MOLD, PARAMETRIC]" in sidebar and "index=0" in sidebar
+    assert "st.warning" in inspect.getsource(moai_page.render_scan)
+    assert "st.warning" in inspect.getsource(moai_page.render_mold)

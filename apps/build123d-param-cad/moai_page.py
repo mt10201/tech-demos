@@ -11,8 +11,8 @@ import moai_scan
 from moai import DEFAULT_HEIGHT_MM, ENDER2_BED_MM, MoaiParams, build, fits_bed, stl_bytes
 
 SCAN = "Real scan: Quarry Moai head (original)"
-BLEND = "Refined scan v1 (ear/top blend)"
-MOLD = "Mold tooling v1 (master + frame)"
+BLEND = "Ear/top blend v1 — REVIEW CANDIDATE (not recommended for reprinting)"
+MOLD = "Mold tooling v1 — REVIEW CANDIDATE (not recommended for reprinting)"
 PARAMETRIC = "Parametric (full statue)"
 
 STONE = "#8a7f73"
@@ -32,7 +32,7 @@ def sidebar():
         "Model",
         [SCAN, BLEND, MOLD, PARAMETRIC],
         index=0,
-        help="Original scan is preserved. Refined v1 softens ear/top hard lines only. "
+        help="Original scan is the default and is preserved. Blend/tooling are REVIEW CANDIDATES, not recommended for reprinting until the ear transition is reviewed. "
              "Mold tooling: integral circular plate + detachable cylindrical pour frame "
              "(tower v3 0.25 mm/side lip+channel).",
     )
@@ -119,15 +119,16 @@ def render(choice) -> None:
 
 
 def render_scan(height_mm: float, refined: bool = False) -> None:
-    title = "Moai head — refined scan v1 (ear/top blend)" if refined else "Moai head — real scan (Rano Raraku quarry moai)"
+    title = "Moai head — REVIEW CANDIDATE (ear/top blend v1)" if refined else "Moai head — real scan (Rano Raraku quarry moai)"
     st.title(title)
     st.caption(
         f"**Source:** [{moai_scan.TITLE}]({moai_scan.URL}) by **{moai_scan.AUTHOR}**, licensed "
         f"[{moai_scan.LICENSE}]({moai_scan.LICENSE_URL}). {moai_scan.CHANGES}"
         + (" **v1 blend:** localized Laplacian soften of ear-front and crown hard creases only; "
-           "protected face displacement = 0; original asset bytes preserved." if refined else "")
+           "hard face mask, both eye masks and eyelid mask displacement = 0 (not the whole face); original asset bytes preserved." if refined else "")
     )
     if refined:
+        st.warning("REVIEW CANDIDATE — not recommended for reprinting until the ear transition is reviewed. The straight ear join remains visible; reduced crease counts do not establish a successful organic blend. Eye photo needed to diagnose the reported print defect; no cause is assigned.")
         v, f = moai_scan.blend_mesh(height_mm, preview=True)
         data = moai_scan.blend_stl_bytes(height_mm)
         name = moai_scan.blend_file_name(height_mm)
@@ -163,9 +164,10 @@ def render_scan(height_mm: float, refined: bool = False) -> None:
 
 
 def render_mold() -> None:
-    st.title("Moai mold tooling v1 — circular plate + cylindrical frame")
+    st.title("Moai mold tooling v1 — REVIEW CANDIDATE")
+    st.warning("REVIEW CANDIDATE — blend and integral master are not recommended for reprinting until the ear transition is reviewed. Straight ear joins remain visible. Tooling geometry is for review, not a print-ready approval.")
     st.caption(
-        f"Integral tooling base under the **refined** scan head, with the same leak-free seating as the "
+        f"Integral tooling base under the **review-candidate** scan head, using the same seating geometry as the "
         f"small round tower v3: **{moai_mold.CLR:.2f} mm/side** frame clearance, **{moai_mold.GR_DEPTH} mm** "
         f"groove, vertical outer sealing lip and **{moai_mold.LIP_CHANNEL} mm** glue-bead channel. "
         f"Plate is tooling only (not a cast pedestal). No vents. "
@@ -179,7 +181,7 @@ def render_mold() -> None:
     c3.metric("Silicone side / top", f"{d.silicone_side_mm:.1f} / {d.top_cover_mm:.1f} mm",
               help=f"Actual top cover above exposed head {d.exposed_head_mm:.1f} mm (statue {d.statue_height_mm:.1f} with {d.statue_sink_mm:.1f} mm plate sink); fill {d.fill_above_plate_mm:.1f} mm. OVER_APEX param={d.over_apex_param_mm:.1f}.")
     c4.metric("Silicone (est.)", f"{d.silicone_ml:.0f} ml",
-              help=f"π·(ID/2)²·(H+{moai_mold.OVER_APEX}) − statue volume")
+              help="Estimated cavity above the plate minus exposed statue volume (0.5 mm embed excluded); mixing/cup losses excluded.")
     st.caption(
         f"Groove {d.groove_width:.2f} × {d.groove_depth:.1f} mm (wall {d.wall:.1f} + 2×{d.clearance_per_side:.2f}). "
         f"Lip Ø {d.lip_d_in:.1f}–{d.lip_d_out:.1f} mm. Soft silicone Shore 10–20A; brow/nose/chin undercuts — "
@@ -196,7 +198,7 @@ def render_mold() -> None:
         st.plotly_chart(figure(vf, ff, dict(x=1.8, y=-2.0, z=0.9), color=FRAME), width="stretch")
 
     st.subheader("Download (mm)")
-    for part, label in (("statue", "Refined statue only"), ("master", "Master with tooling base"),
+    for part, label in (("statue", "REVIEW CANDIDATE statue only"), ("master", "REVIEW CANDIDATE master with tooling base"),
                         ("pour_frame", "Pour frame")):
         data = moai_mold.stl_bytes(part)
         st.download_button(
