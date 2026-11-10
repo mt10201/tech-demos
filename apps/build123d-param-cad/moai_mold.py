@@ -77,12 +77,16 @@ def _load_statue() -> "trimesh.Trimesh":
     return m
 
 
-def dims_for(statue=None) -> MoaiMoldDims:
+def dims_for(statue=None, facet_safe: bool = False) -> MoaiMoldDims:
+    """facet_safe: size the 192-gon frame so its flat faces (apothem), not just its corners, keep
+    SILICONE_SIDE (v2). Default False keeps the v1 numbers unchanged."""
     if statue is None:
         statue = _load_statue()
     v = statue.vertices
     max_r = float(np.sqrt(v[:, 0] ** 2 + v[:, 1] ** 2).max())
     frame_id = 2.0 * (max_r + SILICONE_SIDE)
+    if facet_safe:
+        frame_id = 2.0 * (max_r + SILICONE_SIDE + 0.02) / math.cos(math.pi / SEG)
     frame_gr_in = frame_id / 2 - CLR
     frame_gr_out = frame_id / 2 + FRAME_WALL + CLR
     li = frame_gr_out + LIP_CHANNEL
@@ -173,7 +177,17 @@ def build_parts() -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
         }
 
     statue = _load_statue()
-    d = dims_for(statue)
+    out = build_tooling(statue)
+    out["statue"] = (np.asarray(statue.vertices, float), np.asarray(statue.faces, np.int64))
+    return out
+
+
+def build_tooling(statue, facet_safe: bool = False) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """Integral master (statue sunk STATUE_SINK into the plate + lip, groove cut) and pour frame for ANY
+    statue mesh standing on z=0 and centred on the z axis. Tower v3 constants above, unchanged."""
+    import manifold3d as mf
+
+    d = dims_for(statue, facet_safe)
     M = mf.Manifold
     st = statue.copy()
     st.vertices = st.vertices.copy()
@@ -206,7 +220,6 @@ def build_parts() -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
     sm.vertices[:, 2] -= sm.bounds[0, 2]
     sf.vertices[:, 2] -= sf.bounds[0, 2]
     return {
-        "statue": (np.asarray(statue.vertices, float), np.asarray(statue.faces, np.int64)),
         "master": (np.asarray(sm.vertices, float), np.asarray(sm.faces, np.int64)),
         "pour_frame": (np.asarray(sf.vertices, float), np.asarray(sf.faces, np.int64)),
     }

@@ -8,11 +8,13 @@ import streamlit as st
 
 import moai_mold
 import moai_scan
+import moai_v2
 from moai import DEFAULT_HEIGHT_MM, ENDER2_BED_MM, MoaiParams, build, fits_bed, stl_bytes
 
 SCAN = "Real scan: Quarry Moai head (original)"
-BLEND = "Ear/top blend v1 — REVIEW CANDIDATE (not recommended for reprinting)"
-MOLD = "Mold tooling v1 — REVIEW CANDIDATE (not recommended for reprinting)"
+V2 = "Moai v2 hi-res master + mold base (rebuilt back, organic ear/crown join)"
+BLEND = "Ear/top blend v1 — SUPERSEDED by v2 (not recommended for reprinting)"
+MOLD = "Mold tooling v1 — SUPERSEDED by v2 (not recommended for reprinting)"
 PARAMETRIC = "Parametric (full statue)"
 
 STONE = "#8a7f73"
@@ -30,9 +32,9 @@ def sidebar():
     st.sidebar.header("Moai statue (mm)")
     source = st.sidebar.radio(
         "Model",
-        [SCAN, BLEND, MOLD, PARAMETRIC],
+        [SCAN, V2, BLEND, MOLD, PARAMETRIC],
         index=0,
-        help="Original scan is the default and is preserved. Blend/tooling are REVIEW CANDIDATES, not recommended for reprinting until the ear transition is reviewed. "
+        help="Original scan is the default and is preserved. v2 = hi-res rebuild with the integral round tooling base and pour frame. v1 blend/tooling are superseded REVIEW CANDIDATES, not recommended for reprinting until the ear transition is reviewed. "
              "Mold tooling: integral circular plate + detachable cylindrical pour frame "
              "(tower v3 0.25 mm/side lip+channel).",
     )
@@ -79,6 +81,9 @@ def render(choice) -> None:
     if source == MOLD:
         render_mold()
         return
+    if source == V2:
+        render_v2()
+        return
     st.title("Moai statue — Rapa Nui, Rano Raraku style")
     st.caption(
         "**Parametric** model: no CC0 / CC-BY moai scan could be downloaded without a login, so this "
@@ -119,7 +124,7 @@ def render(choice) -> None:
 
 
 def render_scan(height_mm: float, refined: bool = False) -> None:
-    title = "Moai head — REVIEW CANDIDATE (ear/top blend v1)" if refined else "Moai head — real scan (Rano Raraku quarry moai)"
+    title = "Moai head — v1 blend, SUPERSEDED by v2" if refined else "Moai head — real scan (Rano Raraku quarry moai)"
     st.title(title)
     st.caption(
         f"**Source:** [{moai_scan.TITLE}]({moai_scan.URL}) by **{moai_scan.AUTHOR}**, licensed "
@@ -164,7 +169,7 @@ def render_scan(height_mm: float, refined: bool = False) -> None:
 
 
 def render_mold() -> None:
-    st.title("Moai mold tooling v1 — REVIEW CANDIDATE")
+    st.title("Moai mold tooling v1 — SUPERSEDED by v2")
     st.warning("REVIEW CANDIDATE — blend and integral master are not recommended for reprinting until the ear transition is reviewed. Straight ear joins remain visible. Tooling geometry is for review, not a print-ready approval.")
     st.caption(
         f"Integral tooling base under the **review-candidate** scan head, using the same seating geometry as the "
@@ -206,3 +211,44 @@ def render_mold() -> None:
             data=data, file_name=moai_mold.file_name(part), mime="model/stl", width="stretch",
             key=f"dl_{part}",
         )
+
+
+def render_v2() -> None:
+    st.title("Moai v2 hi-res master — integral round mold base + pour frame")
+    st.caption(
+        f"Rebuilt from the original scan [{moai_scan.TITLE}]({moai_scan.URL}) by **{moai_scan.AUTHOR}** "
+        f"([{moai_scan.LICENSE}]({moai_scan.LICENSE_URL}), modified) on a 0.25 mm grid, 740k triangles, 152.4 mm. "
+        "The straight lines behind the ears and across the crown were where the half-buried quarry statue met the "
+        "soil (the scan ends there); v2 morphs the scan into a new rounded back (4 mm signed-distance blend, back 2 mm "
+        "narrower than the ears) instead of cutting it with a plane. The face is the same scan, re-meshed finer. "
+        "Tooling: tower v3 seating, **0.25 mm/side**, groove 3.5 × 1.6 mm, vertical outer lip + 1.5 mm glue channel. No vents."
+    )
+    st.info("Verified on the box: watertight, one body, genus 0, no self-intersecting triangle pairs. Not yet printed — "
+            "review the renders (ears, crown) before printing. Eye defect from the last print is not diagnosed (photo pending).")
+    d = moai_v2.dims()
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Plate Ø × t", f"{d.plate_d:.1f} × {d.plate_t:.1f} mm")
+    c2.metric("Frame ID / OD / H", f"{d.frame_id:.1f} / {d.frame_od:.1f} / {d.frame_len:.1f} mm")
+    c3.metric("Silicone side / top", f"≥10.0 / {d.top_cover_mm:.1f} mm",
+              help="Side measured to the flat faces of the 192-sided frame bore; top = cover over the exposed head.")
+    c4.metric("Silicone (est.)", f"{d.silicone_ml:.0f} ml", help="Cavity above the plate minus the exposed statue; mixing/cup losses excluded.")
+    v, f = moai_v2.preview_mesh()
+    cols = st.columns(4)
+    for col, (name_v, eye) in zip(cols, SCAN_VIEWS.items()):
+        with col:
+            st.caption(name_v)
+            st.plotly_chart(figure(v, f, eye, light_back=name_v == "Back"), width="stretch", key=f"v2_{name_v}")
+    st.caption(f"Preview: decimated copy ({len(f):,} triangles). Downloads are full resolution.")
+    st.subheader("Download (mm)")
+    if st.button("Prepare v2 master + frame STLs (builds the tooling, ~20 s)", width="stretch"):
+        st.session_state["moai_v2"] = {k: moai_v2.stl_bytes(k) for k in ("master", "pour_frame")}
+    data = moai_v2.stl_bytes("statue")
+    st.download_button(f"Statue only: {moai_v2.FILES['statue']} — {len(data) / 1e6:.1f} MB", data=data,
+                       file_name=moai_v2.FILES["statue"], mime="model/stl", width="stretch", key="dl_v2_statue")
+    got = st.session_state.get("moai_v2")
+    if got:
+        for part, label in (("master", "Master with integral base"), ("pour_frame", "Pour frame")):
+            st.download_button(f"{label}: {moai_v2.FILES[part]} — {len(got[part]) / 1e6:.1f} MB", data=got[part],
+                               file_name=moai_v2.FILES[part], mime="model/stl", width="stretch", key=f"dl_v2_{part}")
+    st.caption("Soft silicone Shore 10–20A. Brow/nose/chin undercuts remain: plan a rear release slit "
+               "(down the back centre-line) or an ear-line two-piece mold. Print the master upright on the plate.")

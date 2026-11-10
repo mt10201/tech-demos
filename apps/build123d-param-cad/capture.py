@@ -465,9 +465,52 @@ def schauberger_only():
             proc.kill()
 
 
+def moai_v2_only():
+    """Moai v2 hi-res master page (sidebar Model = v2) + its four preview views."""
+    ensure_browsers()
+    import urllib.request
+    from playwright.sync_api import sync_playwright
+
+    proc = subprocess.Popen([sys.executable, "-m", "streamlit", "run", str(ROOT / "app.py"), "--server.port",
+                             str(PORT), "--server.headless", "true", "--browser.gatherUsageStats", "false"],
+                            cwd=str(ROOT), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        for _ in range(90):
+            try:
+                urllib.request.urlopen(URL, timeout=1)
+                break
+            except Exception:
+                time.sleep(1)
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1600, "height": 1000})
+            page.goto(URL, wait_until="networkidle", timeout=120_000)
+            page.wait_for_timeout(8000)
+            page.get_by_text("Moai statue", exact=True).first.click()
+            page.wait_for_timeout(15_000)
+            page.get_by_text("Moai v2 hi-res master", exact=False).first.click()
+            page.wait_for_timeout(25_000)
+            page.screenshot(path=str(MEDIA / "moai_v2_page.png"), full_page=False)
+            for idx, view in ((0, "front"), (1, "side"), (2, "three_quarter"), (3, "back")):
+                el = page.locator(".stPlotlyChart").nth(idx)
+                el.scroll_into_view_if_needed()
+                page.wait_for_timeout(1500)
+                el.screenshot(path=str(MEDIA / f"moai_v2_{view}.png"))
+            print("wrote moai_v2 shots")
+            browser.close()
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 if __name__ == "__main__":
     if sys.argv[1:] == ["moai-scan"]:
         moai_scan_only()
+    elif sys.argv[1:] == ["moai-v2"]:
+        moai_v2_only()
     elif sys.argv[1:] == ["new-libs"]:
         new_libs()
     elif sys.argv[1:] == ["black-madonna"]:

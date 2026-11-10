@@ -172,6 +172,25 @@ Mode **Moai statue** in the sidebar has these models:
 - **Parametric (full statue)**: the stylised head-and-torso statue described further below. Download
   `moai_152mm.stl`.
 
+### Moai v2 hi-res master + round mold base (supersedes v1)
+
+![moai v2](media/moai_v2_page.png)
+
+Rebuilt from the original scan download on a 0.25 mm grid (740k triangles, 37 MB, 152.4 mm), using
+`scripts/build_moai_v2.py`. The straight lines behind the ears and across the crown were where the
+half-buried statue met the soil, which is where the scan ends. v2 morphs the scan into a rounded back
+(a 4 mm signed-distance blend, with the back 2 mm narrower than the ears) instead of cutting it with a
+plane. Tooling comes from `moai_mold.build_tooling` with tower v3 seating at 0.25 mm/side: plate 128.1 mm,
+frame ID/OD/H 105.8/111.8/160 mm, at least 10 mm of silicone on the sides and 6.5 mm on top, about
+1,086 ml of silicone. Checks, renders and zips are made by `scripts/build_moai_v2_mold.py`, which writes
+them to `/workspace/exports/moai_v2/`.
+
+| Ears: original, v1, v2 | Mold tooling |
+|---|---|
+| ![](media/moai_v2_ears_board.png) | ![](media/moai_v2_mold_board.png) |
+
+Digest notes (Orca Texture Displacement how-to, Direct3D-S2 evaluation): `docs/cad_digest_2026-11-09.md`.
+
 ### Real scan: Quarry Moai head (mold master)
 
 ![moai head scan](media/moai_head_scan_preview.png)

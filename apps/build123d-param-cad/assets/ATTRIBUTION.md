@@ -120,3 +120,35 @@ Same source as `moai_head_scan_152mm.stl` (Ryan Shackleton, CC BY 4.0). Addition
   channel. Tooling base is not a cast pedestal. No vents.
 
 Processing script: `scripts/build_moai_mold_v1.py`.
+
+---
+
+# Attribution: moai_v2_hires_152mm.stl, moai_v2_hires_preview.ply (Moai v2)
+
+Adapted from **"Quarry Moai - Rapa Nui/Easter Island"** by **Ryan Shackleton**
+https://sketchfab.com/3d-models/quarry-moai-rapa-nuieaster-island-dd6027d79fe14549ab7b2eae0d94de5d
+licensed under **CC BY 4.0** (https://creativecommons.org/licenses/by/4.0/). Commercial use (selling
+castings) is allowed with this credit and an indication of changes.
+
+Changes (this is a modified version): re-oriented upright, cropped at the chin, soil removed, flat base;
+the never-scanned back of the head (the statue is buried in the quarry hillside) replaced by a sculpted,
+rounded back joined to the scan with a 4 mm signed-distance morph (the back is 2 mm narrower than the
+ears); crown smoothed; gaps under ~1.5 mm closed; rebuilt watertight/genus 0 on a 0.25 mm grid;
+740k triangles; scaled to 152.4 mm. The tooling plate, sealing lip and pour frame are original work.
+
+Suggested credit line for listings:
+> Moai head after "Quarry Moai - Rapa Nui/Easter Island" by Ryan Shackleton (sketchfab.com), CC BY 4.0, modified.
+
+## Source search (2026-11-09)
+- Sketchfab API, downloadable + CC0/CC BY/CC BY-SA, query "moai". Better-covered CC BY candidates exist
+  but were NOT used: Sketchfab downloads need a signed-in account (API returned 401), and none was used here.
+  - "Tête monumentale de Moaï" by LZCreation, CC BY (Attribution), 157,688 faces, complete museum head
+    (Anakena, basalt tuff, back included): https://sketchfab.com/3d-models/1de8bfcb4e2e47d6a0c6a4e484001b0e
+  - "Moai" by Museo Nacional de Historia Natural de Chile, CC BY, 171,351 faces, full small statue:
+    https://sketchfab.com/3d-models/7099390468214c2dbcf283454e7b5c8a
+  - "Hoa Hakananai'a" by alexiabg, CC BY, 80,542 faces (lower resolution):
+    https://sketchfab.com/3d-models/bb0b6ee82c7b477db4b01a14bd793409
+- Scan the World / MyMiniFactory moai and Hoa Hakananai'a: CC BY-NC-SA, so excluded (no commercial use).
+- Smithsonian 3D and British Museum: no qualifying Moai scan was confirmed in this pass.
+
+Processing scripts: `scripts/build_moai_v2.py` (statue), `scripts/build_moai_v2_mold.py` (tooling, checks, renders).

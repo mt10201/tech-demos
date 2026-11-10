@@ -147,11 +147,11 @@ def test_silicone_side_at_least_10mm():
 def test_review_candidate_labels_and_original_default():
     import moai_page
     import inspect
-    assert "REVIEW CANDIDATE" in moai_page.BLEND
-    assert "REVIEW CANDIDATE" in moai_page.MOLD
+    assert "SUPERSEDED" in moai_page.BLEND
+    assert "SUPERSEDED" in moai_page.MOLD
     assert "not recommended for reprinting" in moai_page.BLEND
     assert "not recommended for reprinting" in moai_page.MOLD
     sidebar = inspect.getsource(moai_page.sidebar)
-    assert "[SCAN, BLEND, MOLD, PARAMETRIC]" in sidebar and "index=0" in sidebar
+    assert "[SCAN, V2, BLEND, MOLD, PARAMETRIC]" in sidebar and "index=0" in sidebar
     assert "st.warning" in inspect.getsource(moai_page.render_scan)
     assert "st.warning" in inspect.getsource(moai_page.render_mold)
