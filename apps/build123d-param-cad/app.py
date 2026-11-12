@@ -45,15 +45,16 @@ MM = MM_PER_IN
 
 
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex"], horizontal=True,
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai. "
                          "Black Madonna: a 4 in (101.6 mm) Chartres Black Madonna de Sous-Terre mold master. "
                          "Photo → master: repair any photo-to-3D or scan mesh into a printable mold master. "
                          "Photo → 3D (Idol): one photo → 3D via the hosted Idol Space → mold master. "
                          "Photo → relief: pet photo → bas-relief portrait in a memorial-stone frame. "
-                         "Schauberger vortex: hyperbolic funnel + kudu-horn whorl pipe + converging adapter.")
-if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex"):
+                         "Schauberger vortex: hyperbolic funnel + kudu-horn whorl pipe + converging adapter. "
+                         "Concrete test specimen molds: cube / flexural-prism silicone mold masters + pour frame.")
+if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds"):
     st.title("Rodin coil torus — groove lattice")
     st.caption(
         "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
@@ -72,6 +73,12 @@ if mode == "Black Madonna":
     import madonna_page
 
     madonna_page.render(madonna_page.sidebar())
+    st.stop()
+
+if mode == "Concrete test specimen molds":
+    import specimen_page
+
+    specimen_page.render(specimen_page.sidebar())
     st.stop()
 
 if mode == "Schauberger vortex":
