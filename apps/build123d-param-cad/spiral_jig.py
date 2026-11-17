@@ -65,6 +65,7 @@ class SpiralParams:
     key_clear: float = 0.2           # per side: handle drive lugs in disc
     body_margin: float = 12.0        # body OD = coil_od + 2*margin
     handle_span: float = 70.0
+    drive: str = "teeth"             # "teeth" = four-tooth dog clutch (v2), "lugs" = two round lugs (v1)
 
 
 DEFAULT = SpiralParams()
@@ -72,6 +73,11 @@ DISC_FLOOR_MIN = 3.0
 BODY_FLOOR = 4.0
 JOURNAL_D = 24.0
 LUG_D, LUG_H, LUG_R = 5.0, 4.0, 8.5
+DRIVES = {"teeth": "Four-tooth dog clutch (v2, default)", "lugs": "Two lugs (v1)"}
+# v2 four-tooth dog clutch on the journal top (journal R = 12): convex sectors (outer arc, inner chord)
+TOOTH_N, TOOTH_ARC, TOOTH_RI, TOOTH_RO, TOOTH_H = 4, 60.0, 6.3, 11.4, LUG_H
+TOOTH_ROUND, TOOTH_TIP_CH, TOOTH_ROOT, SOCKET_LEAD = 0.4, 0.6, 0.3, 0.5
+TOOTH_ANG0 = 45.0          # teeth centred at 45/135/225/315 deg: the pin holes (on +-y) sit over the gaps
 HUB_D, HUB_H, WING_H = 30.0, 12.0, 10.0
 
 
@@ -325,6 +331,74 @@ def layout(p: SpiralParams, sol: SpiralSolution | None = None) -> dict:
                 z_floor_top=z_floor_top, H_body=H_body, R_bore=JOURNAL_D / 2 + p.run_clear)
 
 
+def tooth_poly(k: int, grow: float = 0.0):
+    """Shapely polygon of tooth k (plan), corners rounded by TOOTH_ROUND, grown by `grow` (mm)."""
+    from shapely.geometry import Polygon
+    c = math.radians(TOOTH_ANG0 + 360.0 / TOOTH_N * k)
+    h = math.radians(TOOTH_ARC / 2)
+    t = np.linspace(c - h, c + h, 25)
+    pts = [(TOOTH_RO * math.cos(a), TOOTH_RO * math.sin(a)) for a in t]
+    pts += [(TOOTH_RI * math.cos(c + h), TOOTH_RI * math.sin(c + h)), (TOOTH_RI * math.cos(c - h), TOOTH_RI * math.sin(c - h))]
+    P = Polygon(pts).convex_hull.buffer(-TOOTH_ROUND, join_style=2).buffer(TOOTH_ROUND, quad_segs=6)
+    return P.buffer(grow, quad_segs=6) if grow else P
+
+
+def _cs_poly(P):
+    mf = _mf()
+    return mf.CrossSection([np.asarray(P.exterior.coords)[:-1].tolist()], mf.FillRule.EvenOdd)
+
+
+def _slices_hull(levels):
+    """levels: [(z, polygon)], hull of thin extrusions (all polygons convex)."""
+    mf = _mf()
+    return mf.Manifold.batch_hull([mf.Manifold.extrude(_cs_poly(P), 1e-3).translate((0, 0, z)) for z, P in levels])
+
+
+def drive_strength(p: SpiralParams) -> dict:
+    """Torque estimates for the handle->disc drive, PLA printed upright (teeth/lugs grow in +z, so the root is a
+    layer line). Assumptions: interlayer strength 20 MPa (used for both tension and shear across layers), load
+    applied at mid-height of the engaged depth, rigid parts; 'shared' = load split evenly over all teeth/lugs,
+    'one/two carry' = worst realistic tolerance case (v1: 1 of 2 lugs, v2: 2 of 4 teeth)."""
+    from shapely.geometry import Point
+    S = 20.0
+    arm = TOOTH_H / 2
+    out = {}
+    # v1 lugs
+    A1 = math.pi * LUG_D ** 2 / 4
+    Z1 = math.pi * LUG_D ** 3 / 32
+    F1b, F1s = S * Z1 / arm, S * A1
+    out["lugs"] = dict(count=2, root_area_mm2=round(A1, 1), section_modulus_mm3=round(Z1, 2), radius_mm=LUG_R,
+                       torque_bending_shared_Nm=round(2 * F1b * LUG_R / 1000, 2),
+                       torque_bending_worst_Nm=round(1 * F1b * LUG_R / 1000, 2),
+                       torque_shear_shared_Nm=round(2 * F1s * LUG_R / 1000, 2))
+    # v2 teeth: section of tooth 0, bending about its radial centre line (load is tangential)
+    P = tooth_poly(0)
+    c = math.radians(TOOTH_ANG0)
+    er, et = np.array([math.cos(c), math.sin(c)]), np.array([-math.sin(c), math.cos(c)])
+    xy = np.asarray(P.exterior.coords)
+    q = np.column_stack([xy @ et, xy @ er])           # tangential, radial coordinates
+    from shapely.geometry import Polygon
+    Q = Polygon(q)
+    # second moment about the radial axis through the centroid (tangential direction = bending direction)
+    x, y = np.asarray(Q.exterior.coords).T
+    cr = x[:-1] * y[1:] - x[1:] * y[:-1]
+    A = cr.sum() / 2
+    cx = ((x[:-1] + x[1:]) * cr).sum() / (6 * A)
+    Iyy = ((x[:-1] ** 2 + x[:-1] * x[1:] + x[1:] ** 2) * cr).sum() / 12 - A * cx ** 2
+    c_max = max(abs(x - cx))
+    Z2 = abs(Iyy) / c_max
+    r_m = float(Q.centroid.y)
+    F2b, F2s = S * Z2 / arm, S * abs(A)
+    out["teeth"] = dict(count=TOOTH_N, root_area_mm2=round(abs(A), 1), area_vs_one_lug=round(abs(A) / A1, 2),
+                        section_modulus_mm3=round(Z2, 1), mean_radius_mm=round(r_m, 2),
+                        torque_bending_shared_Nm=round(TOOTH_N * F2b * r_m / 1000, 1),
+                        torque_bending_worst_Nm=round(2 * F2b * r_m / 1000, 1),
+                        torque_shear_shared_Nm=round(TOOTH_N * F2s * r_m / 1000, 1))
+    out["assumptions"] = " ".join(drive_strength.__doc__.split("Assumptions: ")[1].split())
+    out["winding_torque_needed_Nm"] = "~0.1-0.3 (two 0.98 mm copper strands bent plastically ~0.06 N*m + friction)"
+    return out
+
+
 def disc(p: SpiralParams, L: dict | None = None):
     mf = _mf()
     L = L or layout(p)
@@ -338,9 +412,15 @@ def disc(p: SpiralParams, L: dict | None = None):
     for y in (a, -a):
         d = d - _cyl(rh, embed + 1, ft - embed, 0, y, 48)
         d = d - mf.Manifold.cylinder(0.4, rh, rh + 0.4, 48).translate((0, y, ft - 0.39))   # lead-in chamfer
-    rl = LUG_D / 2 + p.key_clear
-    for x in (LUG_R, -LUG_R):
-        d = d - _cyl(rl, LUG_H + 2 * p.key_clear + 1.0, -1.0, x, 0, 48)          # blind drive socket from below
+    if p.drive == "lugs":
+        rl = LUG_D / 2 + p.key_clear
+        for x in (LUG_R, -LUG_R):
+            d = d - _cyl(rl, LUG_H + 2 * p.key_clear + 1.0, -1.0, x, 0, 48)          # blind drive socket from below
+    else:
+        kc, dep = p.key_clear, TOOTH_H + 2 * p.key_clear
+        socks = [_slices_hull([(-1.0, tooth_poly(k, kc + SOCKET_LEAD)), (0.0, tooth_poly(k, kc + SOCKET_LEAD)),
+                               (SOCKET_LEAD, tooth_poly(k, kc)), (dep, tooth_poly(k, kc))]) for k in range(TOOTH_N)]
+        d = d - mf.Manifold.batch_boolean(socks, mf.OpType.Add)
     return _tm(d), w2d
 
 
@@ -405,10 +485,15 @@ def handle(p: SpiralParams, L: dict | None = None):
     journal = mf.Manifold.cylinder(jh, JOURNAL_D / 2, JOURNAL_D / 2, SEG).translate((0, 0, HUB_H - 0.01))
     h = w[0] + w[1] + hub + (fil ^ _cyl(HUB_D / 2 + 2.5, WING_H + 2.0)) + journal
     zt = HUB_H + jh
-    for x in (LUG_R, -LUG_R):
-        lug = mf.Manifold.batch_hull([_cyl(LUG_D / 2, LUG_H - 0.6, zt - 0.01, x, 0, 48),
-                                      _cyl(LUG_D / 2 - 0.6, 1e-3, zt + LUG_H, x, 0, 48)])
-        h = h + lug
+    if p.drive == "lugs":
+        for x in (LUG_R, -LUG_R):
+            lug = mf.Manifold.batch_hull([_cyl(LUG_D / 2, LUG_H - 0.6, zt - 0.01, x, 0, 48),
+                                          _cyl(LUG_D / 2 - 0.6, 1e-3, zt + LUG_H, x, 0, 48)])
+            h = h + lug
+    else:
+        for k in range(TOOTH_N):
+            h = h + _slices_hull([(zt - 0.01, tooth_poly(k, TOOTH_ROOT)), (zt + TOOTH_ROOT, tooth_poly(k)),
+                                  (zt + TOOTH_H - TOOTH_TIP_CH, tooth_poly(k)), (zt + TOOTH_H, tooth_poly(k, -TOOTH_TIP_CH))])
     return _tm(h)
 
 
@@ -505,12 +590,25 @@ def verify(p: SpiralParams, out, info) -> dict:
         disc_running_clearance_per_side_mm=round(L["R_pocket"] - L["R_disc"], 3),
         assembly_interference_mm3=inter,
         wall_pieces=len(getattr(w, "geoms", [w])),
+        drive=p.drive, socket_to_pin_hole_min_mm=round(socket_pin_gap(p, L), 3),
     )
     c = res["clearance"]
     c["ok"] = bool(c["wire_envelope_vs_walls_area_mm2"] < 1e-3 and c["min_wire_centre_to_wall_mm"] >= p.wire_w / 2 - 1e-3
                    and c["min_wire_surface_to_pin_mm"] >= -1e-6 and c["coil_inside_disc"]
-                   and all(v < 0.05 for v in inter.values()))
+                   and all(v < 0.05 for v in inter.values()) and c["socket_to_pin_hole_min_mm"] >= 1.0)
     return res
+
+
+def socket_pin_gap(p, L) -> float:
+    """Min plan distance between any drive socket (incl. lead-in) and a pin hole (they overlap in height)."""
+    from shapely.geometry import Point
+    from shapely.ops import unary_union
+    holes = unary_union([Point(0, y).buffer((p.pin_d + p.pin_fit) / 2, quad_segs=32) for y in (L["pin_a"], -L["pin_a"])])
+    if p.drive == "lugs":
+        socks = unary_union([Point(x, 0).buffer(LUG_D / 2 + p.key_clear, quad_segs=32) for x in (LUG_R, -LUG_R)])
+    else:
+        socks = unary_union([tooth_poly(k, p.key_clear + SOCKET_LEAD) for k in range(TOOTH_N)])
+    return float(socks.distance(holes))
 
 
 def stl_bytes(tm) -> bytes:

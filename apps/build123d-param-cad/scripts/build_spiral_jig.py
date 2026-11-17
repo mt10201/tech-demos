@@ -1,4 +1,6 @@
-"""Build spiral wire jig sets (1/2 cubit even, 1/2 cubit golden, 1/4 cubit even), verify, render -> /workspace/exports/spiral_jig/."""
+"""Build spiral wire jig sets (1/2 cubit even, 1/2 cubit golden, 1/4 cubit even), verify, render.
+Usage: build_spiral_jig.py [OUT] [drive]   drive = teeth (v2 default -> /workspace/exports/spiral_jig/v2_four_tooth)
+                                           or lugs (v1 -> pass /workspace/exports/spiral_jig explicitly)."""
 import os, json, sys
 from pathlib import Path
 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
@@ -8,7 +10,8 @@ from PIL import Image, ImageDraw
 import spiral_jig as S
 from moai_render import look_at, board
 
-OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/exports/spiral_jig"); OUT.mkdir(parents=True, exist_ok=True)
+DRIVE = sys.argv[2] if len(sys.argv) > 2 else "teeth"
+OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/exports/spiral_jig/v2_four_tooth"); OUT.mkdir(parents=True, exist_ok=True)
 BODY, DISC, HAND, CU, BRASS = (0.20, 0.36, 0.62), (0.62, 0.74, 0.88), (0.13, 0.25, 0.45), (0.80, 0.45, 0.22), (0.85, 0.68, 0.20)
 _R = {}
 
@@ -31,9 +34,9 @@ def render(items, path, direction, title="", size=(900, 800), target=None, mag=N
     return path
 
 
-CASES = {"half_cubit_even": S.preset_params("1/2 cubit (261.8 mm)"),
-         "half_cubit_golden": S.preset_params("1/2 cubit (261.8 mm)", spacing="golden"),
-         "quarter_cubit_even": S.preset_params("1/4 cubit (130.9 mm)")}
+CASES = {"half_cubit_even": S.preset_params("1/2 cubit (261.8 mm)", drive=DRIVE),
+         "half_cubit_golden": S.preset_params("1/2 cubit (261.8 mm)", spacing="golden", drive=DRIVE),
+         "quarter_cubit_even": S.preset_params("1/4 cubit (130.9 mm)", drive=DRIVE)}
 ISO = (1, -1.3, 1.0)
 summary, imgs = {}, []
 for name, p in CASES.items():
@@ -65,17 +68,33 @@ for name, p in CASES.items():
     if name == "half_cubit_even":
         ex = lambda m, dz: m.copy().apply_translation((0, 0, dz))
         render([(A["body"], BODY), (ex(A["winding_disc"], 28), DISC), (ex(A["pins"], 28), BRASS), (ex(A["handle"], -30), HAND)],
-               OUT / f"{name}_exploded.png", (1, -1.3, 0.55), "exploded: winding disc + pins (top), body, winged T-handle (bottom, lugs key into disc)",
+               OUT / f"{name}_exploded.png", (1, -1.3, 0.55), f"exploded: winding disc + pins (top), body, winged T-handle (bottom, {'4 teeth' if DRIVE == 'teeth' else '2 lugs'} key into disc)",
                size=(900, 1000))
         render([(A["handle"].copy().apply_translation((0, 0, 0)), HAND)], OUT / "handle_from_below.png", (0.8, -1.0, -0.9),
                "winged T-handle seen from below (where your fingers go)")
         for k, col in (("body", BODY), ("winding_disc", DISC), ("handle", HAND)):
             render([(re[k], col)], OUT / f"{name}_{k}.png", ISO, f"{name}_{k}.stl (print pose)")
         render([(re["body"], BODY)], OUT / f"{name}_body_top.png", (0, 0, 1), "body top: flared entry ports (mouth on the start axis, fan to the tangent exit)", up=(0, 1, 0))
+        if DRIVE == "teeth":
+            hz = re["handle"].bounds[1, 2]
+            render([(re["handle"], HAND)], OUT / "handle_teeth_closeup.png", (0.9, -1.1, 1.2),
+                   "handle: four-tooth dog clutch on the journal (60 deg teeth, 4 mm tall, chamfered tips)",
+                   target=(0, 0, hz - 3), mag=17)
+            dflip = re["winding_disc"].copy(); dflip.apply_transform(trimesh.transformations.rotation_matrix(np.pi, (1, 0, 0)))
+            pins_flip = A["pins"].copy(); pins_flip.apply_translation((0, 0, -L["z_disc"]))
+            pins_flip.apply_transform(trimesh.transformations.rotation_matrix(np.pi, (1, 0, 0)))
+            render([(dflip, DISC), (pins_flip, BRASS)], OUT / "disc_underside_sockets.png", (0.5, -0.6, 1.2),
+                   "winding disc underside: 4 tooth sockets (0.2/side + lead-in) clear of the pin holes", size=(800, 800))
+            render([(dflip, DISC), (pins_flip, BRASS)], OUT / "disc_underside_sockets_flat.png", (0, 0, 1),
+                   f"disc underside (flat view): sockets >= {summary[name]['parts']['clearance']['socket_to_pin_hole_min_mm']:.2f} mm from pin holes",
+                   size=(800, 800), up=(0, 1, 0))
 imgs += [OUT / "half_cubit_even_assembly.png", OUT / "half_cubit_even_exploded.png"]
-board([str(i) for i in imgs], OUT / "spiral_jig_board.png", "Spiral wire jig - review renders (not for sale)", cols=3)
+if DRIVE == "teeth":
+    imgs += [OUT / "handle_teeth_closeup.png", OUT / "disc_underside_sockets.png", OUT / "disc_underside_sockets_flat.png"]
+board([str(i) for i in imgs], OUT / "spiral_jig_board.png", f"Spiral wire jig - review renders (not for sale), drive: {S.DRIVES[DRIVE]}", cols=3)
 summary["pins"] = S.PIN_PART
+summary["drive"] = dict(selected=DRIVE, strength=S.drive_strength(CASES["half_cubit_even"]))
 (OUT / "verification.json").write_text(json.dumps(summary, indent=1, default=str))
 for n, s in summary.items():
-    if n != "pins":
+    if n not in ("pins", "drive"):
         print(n, json.dumps(s["coil"]), all(v.get("ok") for v in s["parts"].values()))

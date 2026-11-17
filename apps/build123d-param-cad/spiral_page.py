@@ -48,8 +48,11 @@ def sidebar() -> S.SpiralParams:
         rc = st.number_input("Running clearance per side", 0.1, 0.6, 0.3, 0.05)
         kc = st.number_input("Drive-lug clearance per side", 0.1, 0.4, 0.2, 0.05)
         hs = st.number_input("Handle span", 50.0, 110.0, 70.0, 1.0)
+    drive = sb.selectbox("Handle → disc drive", list(S.DRIVES), index=0, format_func=lambda k: S.DRIVES[k],
+                         help="v2: four 60° teeth on the handle journal (≈2.6× the root area of one v1 lug). "
+                              "v1: the original two Ø5 lugs, geometry unchanged.")
     return S.SpiralParams(float(L), float(od), spacing, int(arms), float(wire), float(ch), float(wh), float(wt), float(dk),
-                          float(pd), float(pl), float(pg), 6.0, float(pf), float(rc), float(kc), 12.0, float(hs))
+                          float(pd), float(pl), float(pg), 6.0, float(pf), float(rc), float(kc), 12.0, float(hs), drive)
 
 
 @st.cache_data(show_spinner="Building jig…", max_entries=8)
@@ -126,6 +129,7 @@ def render(p: S.SpiralParams) -> None:
             st.json(ver)
     st.subheader("Coil numbers"); st.json(rep)
     st.subheader("Clearance checks"); st.json(clr)
+    st.subheader("Drive strength (estimate)"); st.json(S.drive_strength(p))
     pp = S.PIN_PART
     st.subheader("Buy: centre pins")
     st.markdown(f"2 × {pp['desc']} — {pp['vendor']} [{pp['part']}]({pp['url']}) (pack of {pp['pack']}). "

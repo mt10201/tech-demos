@@ -54,3 +54,22 @@ def test_parts_valid_and_clear(p):
     assert c["ok"], c
     assert c["wire_envelope_vs_walls_area_mm2"] < 1e-3 and c["min_wire_centre_to_wall_mm"] >= p.wire_w / 2
     assert out["body"].extents[0] == pytest.approx(p.coil_od + 24, abs=0.5)
+
+
+def test_v1_lugs_unchanged_and_v2_teeth_valid():
+    import hashlib
+    v1 = S.SpiralParams(drive="lugs")
+    v2 = S.DEFAULT
+    assert v2.drive == "teeth"
+    o1, i1 = S.build(v1)
+    o2, i2 = S.build(v2)
+    assert S.stl_bytes(o1["body"]) == S.stl_bytes(o2["body"])            # body reusable
+    assert S.report(v1) == S.report(v2)                                  # coil numbers unchanged
+    assert o2["winding_disc"].extents[2] == pytest.approx(o1["winding_disc"].extents[2])   # no height change
+    c = S.verify(v2, o2, i2)
+    assert c["clearance"]["ok"] and c["clearance"]["socket_to_pin_hole_min_mm"] >= 1.0
+    assert all(c[k]["ok"] for k in o2)
+    ds = S.drive_strength(v2)
+    assert ds["teeth"]["root_area_mm2"] >= 2.5 * ds["lugs"]["root_area_mm2"]
+    assert ds["teeth"]["torque_bending_worst_Nm"] > 5 * ds["lugs"]["torque_bending_worst_Nm"]
+    assert o2["handle"].volume > o1["handle"].volume and o2["winding_disc"].volume < o1["winding_disc"].volume
