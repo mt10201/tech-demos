@@ -1,0 +1,3 @@
+streamlit>=1.41,<2
+# Official harry0703 package. Do NOT install third-party "MoneyPrinterTurbo".
+mpt==1.3.9
