@@ -45,7 +45,7 @@ MM = MM_PER_IN
 
 
 with st.sidebar:
-    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds", "Tetrix brazing jig"], horizontal=True,
+    mode = st.radio("Mode", ["Torus", "Mold master", "Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds", "Tetrix brazing jig", "Spiral wire jig"], horizontal=True,
                     help="Mold master: silicone mold positives (two halves) + pour frame for this torus. "
                          "Moai statue: a separate side part, a 6 in Rapa Nui moai. "
                          "Black Madonna: a 4 in (101.6 mm) Chartres Black Madonna de Sous-Terre mold master. "
@@ -54,8 +54,9 @@ with st.sidebar:
                          "Photo → relief: pet photo → bas-relief portrait in a memorial-stone frame. "
                          "Schauberger vortex: hyperbolic funnel + kudu-horn whorl pipe + converging adapter. "
                          "Concrete test specimen molds: cube / flexural-prism silicone mold masters + pour frame. "
-                         "Tetrix brazing jig: rod gauge + positioning jigs for a Sierpinski tetrahedron of brazed copper rods.")
-if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds", "Tetrix brazing jig"):
+                         "Tetrix brazing jig: rod gauge + positioning jigs for a Sierpinski tetrahedron of brazed copper rods. "
+                         "Spiral wire jig: spin-to-wind jig (round body, scroll-wall disc, brass pins, T-handle) for an open-spaced flat copper spiral.")
+if mode not in ("Moai statue", "Black Madonna", "Photo → master", "Photo → 3D (Idol)", "Photo → relief", "Schauberger vortex", "Concrete test specimen molds", "Tetrix brazing jig", "Spiral wire jig"):
     st.title("Rodin coil torus — groove lattice")
     st.caption(
         "Parametric CAD playground (**build123d** + Streamlit). Default preset **Photo replica**: "
@@ -74,6 +75,12 @@ if mode == "Black Madonna":
     import madonna_page
 
     madonna_page.render(madonna_page.sidebar())
+    st.stop()
+
+if mode == "Spiral wire jig":
+    import spiral_page
+
+    spiral_page.render(spiral_page.sidebar())
     st.stop()
 
 if mode == "Tetrix brazing jig":
