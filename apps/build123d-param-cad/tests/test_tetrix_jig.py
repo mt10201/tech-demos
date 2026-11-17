@@ -46,3 +46,33 @@ def test_oversize_flagged():
     p = T.TetrixParams(edge=261.8, level=1)
     out, info = T.build(p)
     assert T.verify(p, out, info)["assembly_plate_261.8mm"]["ok"] is False
+
+
+def test_snap_defaults_and_profile():
+    p = T.DEFAULT
+    assert (p.rod_d, p.clearance, p.snap_mouth, p.snap_lip) == (1.88, 0.10, 1.75, True)
+    d = T.dims(p)
+    assert d.seat_d == pytest.approx(1.98) and d.interference_per_side == pytest.approx(0.065)
+    assert d.rod_cut_length == pytest.approx(64.45) and d.alt_continuous_outer_edges["long_len"] == pytest.approx(129.9)
+    S = T.snap_profile(p, d.seat_d / 2 + T.CRADLE_TOP)
+    assert S["lip"] and S["seat_wrap_deg"] > 180 and S["rm"] * 2 < p.rod_d < S["rs"] * 2
+
+
+def test_snap_seats_hold_and_release():
+    out, info = T.build(T.DEFAULT)
+    v = T.verify(T.DEFAULT, out, info)
+    for k in ("single_tetra_jig", "assembly_plate_130.9mm"):
+        c = v[k]
+        assert c["seat_interference_mm3"] == 0 and c["lifts_out_through_mouth"] and c["snap_holds_rod"], k
+        assert c["interference_per_side_mm"] == pytest.approx(0.065)
+    tj, rods, _ = T.tetra_jig(T.DEFAULT)
+    for a, b in rods:                                   # every cradle (flat and sloped) has a lip
+        assert not T.liftout_clear(tj, [(a, b)], 1.88) and T.liftout_clear(tj, [(a, b)], 1.73)
+
+
+def test_lip_off_is_open_channel():
+    p = T.TetrixParams(snap_lip=False)
+    out, info = T.build(p)
+    v = T.verify(p, out, info)
+    assert v["single_tetra_jig"]["full_rod_lifts_without_lip_contact"] and not v["single_tetra_jig"]["snap_holds_rod"]
+    assert info["rod_length_gauge"]["lip"] is False

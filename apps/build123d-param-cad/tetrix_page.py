@@ -16,12 +16,21 @@ def sidebar() -> T.TetrixParams:
     i = sb.selectbox("Outer edge (royal-cubit harmonic 523.6/2^n)", range(len(edges)), index=1,
                      format_func=lambda k: labels[k])
     level = sb.radio("Level", [1, 2], horizontal=True, help="Level 1 = 4 tetrahedra, 24 rods; level 2 = 16, 96 rods.")
-    d = sb.number_input("Rod diameter (twisted pair envelope)", 1.0, 6.0, 2.8, 0.1,
-                        help="Two 16 AWG (1.29 mm) wires twisted ≈ 2.6–2.8 mm. Measure yours with calipers.")
-    c = sb.number_input("Channel clearance (diametral)", 0.0, 1.0, 0.3, 0.05)
+    d = sb.number_input("Rod diameter (twisted pair envelope)", 1.0, 6.0, 1.88, 0.01,
+                        help="Measure the stretched + twisted pair with calipers (Timothy's: 1.88 mm).")
+    c = sb.number_input("Seat clearance (diametral)", 0.0, 1.0, 0.10, 0.01,
+                        help="Seat diameter = rod + this. Raise if the rod won't sit down in the seat.")
     a = sb.number_input("Joint allowance (total per rod)", 0.0, 4.0, 1.0, 0.1,
                         help="Cut length = small edge − allowance; half comes off each end.")
-    return T.TetrixParams(float(edges[i]), int(level), float(d), float(c), float(a))
+    lip = sb.checkbox("Snap lips on jig channels", True)
+    m = sb.number_input("Snap mouth width", 0.8, 6.0, 1.75, 0.01, disabled=not lip,
+                        help="Opening between the lips. Interference per side = (rod − mouth)/2. "
+                             "Too hard to press in → raise (e.g. 1.80); falls out → lower (e.g. 1.70).")
+    gl = sb.checkbox("Snap lips on gauge measuring channels", True, disabled=not lip,
+                     help="Straightening groove always stays open.")
+    sb.caption(f"Seat Ø{d + c:.2f}, mouth {min(m, d + c) if lip else d + c:.2f} → interference "
+               f"{max(0.0, (d - m) / 2) if lip else 0.0:.3f} mm per side")
+    return T.TetrixParams(float(edges[i]), int(level), float(d), float(c), float(a), bool(lip), float(m), bool(lip and gl))
 
 
 @st.cache_data(show_spinner="Building jigs…", max_entries=8)
@@ -51,7 +60,7 @@ def render(p: T.TetrixParams) -> None:
     st.caption(
         f"Level-{d.level} tetrix, outer edge **{d.edge:g} mm**, height {d.height:g} mm: {4 ** d.level} tetrahedra of "
         f"{d.small_edge:g} mm, **{d.rod_count} rods cut to {d.rod_cut_length:g} mm**, {d.joint_count} joints. "
-        f"Channels Ø{d.channel_d:g} for Ø{d.rod_d:g} rod. Wire: {d.total_wire_mm_incl_3pct / 1000:.2f} m of single "
+        f"Snap seats Ø{d.seat_d:g} for Ø{d.rod_d:g} rod, mouth {d.snap_mouth:g} ({d.interference_per_side:g} mm/side). Wire: {d.total_wire_mm_incl_3pct / 1000:.2f} m of single "
         f"strand (2 per rod, +3% for twisting). PLA only positions rods: tie joints with binding wire, lift out, "
         f"then braze. Every jig surface ≥ {T.MIN_JOINT_CLEAR:g} mm from every joint. **STL in millimetres.**")
     b, rods = _build(p)
