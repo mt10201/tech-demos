@@ -517,6 +517,34 @@ python capture.py schauberger                             # media/schauberger_{a
 
 This mode uses `width="stretch"` and needs **streamlit ≥ 1.50**. On an existing venv, run `pip install -U -r requirements.txt`.
 
+## HHO vortex nozzle ring (4 swirled, downward-tilted tips)
+
+> **⚠️ SAFETY — the printed PLA ring is a COLD-GAS TEST FIXTURE ONLY. Never light it.** HHO is premixed hydrogen +
+> oxygen, so the gas inside the ring is already explosive: a flashback into a plastic chamber can burst it, and PLA
+> softens at about 60 °C. Use the print only to check aim, swirl and flow balance with air or an inert gas. Make the
+> working head in metal (machine the STEP in brass, or cast it in bronze) and fit a **flashback arrestor and a check
+> valve at the tube inlet**.
+
+Sidebar mode **HHO vortex nozzle ring** (`hho_ring.py`, `hho_page.py`). Ring held horizontal, flame below. Four
+straight brass tips are heat-set into angled sockets at 45/135/225/315°, all at the same radius, height and depth
+(each stops on a shoulder). Each tip points inward, **tilted down** (default 30° below horizontal) and offset
+sideways by a **swirl** angle (default 12°). The four jets pass a common vortex core (Ø≈7 mm, ≈2.7 mm below the
+ring bottom at the defaults) and spin on downward. Everything is parametric on shank OD, heat-set interference
+(0.15 mm/side), insertion depth, tilt, swirl and tube size.
+
+* **Tips (default):** K&S 8125 brass tube 1/16" OD × 0.014" wall (ID 0.864 mm), cut to ~20 mm. The page also lists
+  K&S 8126 (3/32") and Hydroflux 18 G needle tips (dimensions not verified).
+* **Gas path (split manifold):** an upward 1/4" or 5/16" barb with 45° catch faces → vertical bore → radial runner
+  → 180° distribution arc → two risers at ±90° → full-ring plenum → four tilted feeds → sockets. All four paths are
+  mirror/rotation images of each other, so they are the same length. The **direct** option feeds the plenum at 0°,
+  which makes the paths differ by 26.7 mm.
+* **Printable with no supports.** Print it flat with the barb up. The plenum, distribution arc, runner and feeds are
+  45° teardrops pointing up. The inner bore is a cone widening downward with an overhang equal to the tilt (≤ 45°).
+  The risers and the barb bore are vertical. Gas channels have walls of at least 2 mm.
+* `scripts/build_hho_ring.py` writes `hho_vortex_ring.stl` / `.step`, a reference gas-cavity STL, renders (iso,
+  top, side, bottom, two cutaways, gas path), a board and `summary.json` to `/workspace/exports/hho_vortex_ring/v1/`.
+  Tests: `tests/test_hho_ring.py`.
+
 ## build123d dev features: fillet error reporting (PR #1525) and `filter_by_value` (PR #1524)
 
 Both are only on build123d `dev` (after 0.13.0), so **the app stays on the released build123d** (no git pin).
