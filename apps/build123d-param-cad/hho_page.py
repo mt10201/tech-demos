@@ -34,6 +34,17 @@ def sidebar() -> H.RingParams:
     swirl = sb.slider("Swirl (tangential offset, °)", 0.0, 30.0, 12.0, 0.5,
                       help="0 = all 4 jets hit one point on the axis; more swirl = wider spinning core.")
     prot = sb.slider("Tip stick-out past the socket (for the jet maths)", 0.0, 10.0, 3.0, 0.5)
+    sb.markdown("**Top inner edge**")
+    edge = sb.radio("Top inner edge", list(H.TOP_EDGE_MODES), index=0,
+                    format_func=lambda k: H.TOP_EDGE_MODES[k],
+                    help="Flares the top of the bore so, when a metal head is lit, outside air is pulled down "
+                         "more evenly with less turbulence at the lip, which helps the tornado form cleanly. "
+                         "Rounded (default) is a 45° chamfer blended into a fillet: a true quarter-round would "
+                         "meet the top face at a 90° overhang and need supports. None is the v1 sharp edge.")
+    esz = sb.slider("Top inner edge size (mm)", H.TOP_EDGE_SIZE_MIN, H.TOP_EDGE_SIZE_MAX,
+                    H.TOP_EDGE_SIZE_DEFAULT, 0.1,
+                    help="Radial flare at the top face (and the 45° chamfer size). Clamped so at least 2 mm of "
+                         "wall stays above the plenum and gas channels.")
     sb.markdown("**Gas path**")
     tube = sb.radio("Clear vinyl tube", list(H.BARBS), index=0)
     man = sb.radio("Manifold", list(H.MANIFOLDS), format_func=lambda k: H.MANIFOLDS[k], index=0)
@@ -43,10 +54,22 @@ def sidebar() -> H.RingParams:
         dr = st.slider("Distribution / runner radius", 1.2, 2.5, 1.6, 0.1)
         wall = st.slider("Wall round gas channels", 2.0, 4.0, 2.2, 0.1)
         nb = st.slider("Barbs", 2, 3, 3)
-    return H.RingParams(tip=tip, shank_od=float(od), interference=float(inter), insert_depth=float(depth),
-                        protrusion=float(prot), swirl_deg=float(swirl), tilt_deg=float(tilt), plenum_r=float(pr),
-                        dist_r=float(dr), feed_d=float(feed), R_plenum=float(Rp), wall=float(wall), tube=tube,
-                        manifold=man, n_barbs=int(nb))
+    p = H.RingParams(tip=tip, shank_od=float(od), interference=float(inter), insert_depth=float(depth),
+                     protrusion=float(prot), swirl_deg=float(swirl), tilt_deg=float(tilt), plenum_r=float(pr),
+                     dist_r=float(dr), feed_d=float(feed), R_plenum=float(Rp), wall=float(wall), tube=tube,
+                     manifold=man, n_barbs=int(nb), top_edge=edge, top_edge_size=float(esz))
+    try:
+        info = H.top_edge_info(p)
+        if info["clamped"]:
+            sb.warning(info["note"])
+        elif edge == "rounded" and info["size"] > 0:
+            sb.caption("Rounded profile: 45° chamfer blended into a fillet (overhang ≤ 45°, no supports). "
+                       f"Applied size {info['size']:g} mm, depth {info['depth']:.2f} mm.")
+        elif edge == "chamfer" and info["size"] > 0:
+            sb.caption(f"45° chamfer, {info['size']:g} mm, printable without supports.")
+    except ValueError:
+        pass
+    return p
 
 
 @st.cache_data(show_spinner="Building ring…", max_entries=6)
@@ -74,7 +97,11 @@ def render(p: H.RingParams) -> None:
         st.error(str(e)); return
     st.caption("Ring held horizontal, flame below. Four straight brass tips are heat-set into angled sockets, all at the "
                "same depth (stop shoulder). Each points inward, tilted down and offset sideways, so the jets spin round a "
-               "common core below the ring. **STL + STEP in millimetres. Not sliced.**")
+               "common core below the ring. The top inner edge is flared (rounded by default) so incoming air enters more "
+               "evenly. **STL + STEP in millimetres. Not sliced.**")
+    te = rep.get("top_edge") or {}
+    if te.get("clamped") and te.get("note"):
+        st.warning(te["note"])
     j, pb = rep["jets"], rep["path_balance"]
     c = st.columns(5)
     c[0].metric("Ring OD × height", f"{rep['ring_od_mm']:.0f} × {rep['ring_height_mm']:.1f}")

@@ -1,5 +1,6 @@
 """HHO vortex nozzle ring: aim maths, equal paths, watertight single body, connected gas cavity, 2 mm walls."""
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -90,3 +91,80 @@ def test_variants_solid(kw):
 def test_step_export(built, tmp_path):
     stl, step = H.export(built, tmp_path)
     assert step.read_bytes()[:13] == b"ISO-10303-21;" and stl.stat().st_size > 10000
+
+
+V1_STL_SHA256 = "78b26a1682949855a0907e106790e76d11571415d4e24e7fd90ecc7a6d5e48e2"
+V1_STL = Path("/workspace/exports/hho_vortex_ring/v1/hho_vortex_ring.stl")
+
+
+def test_none_matches_v1_stl():
+    """Selecting None must keep the v1 STL byte-identical (sharp top-inner edge)."""
+    import hashlib
+    from pathlib import Path
+    p = H.RingParams(top_edge="none")
+    data = H.stl_bytes(H.build(p)["ring"])
+    assert hashlib.sha256(data).hexdigest() == V1_STL_SHA256
+    # size is ignored when the edge is off
+    data2 = H.stl_bytes(H.build(H.RingParams(top_edge="none", top_edge_size=2.5))["ring"])
+    assert data2 == data
+    if V1_STL.exists():
+        assert data == V1_STL.read_bytes()
+
+
+def test_top_edge_default_is_rounded():
+    assert H.DEFAULT.top_edge == "rounded"
+    assert H.DEFAULT.top_edge_size == pytest.approx(2.5)
+    info = H.top_edge_info(H.DEFAULT)
+    assert info["mode"] == "rounded" and not info["clamped"]
+    assert info["size"] == pytest.approx(2.5)
+    assert info["depth"] == pytest.approx(2.5 * math.sqrt(2.0))
+    # default solid is not the v1 mesh
+    import hashlib
+    h = hashlib.sha256(H.stl_bytes(H.build(H.DEFAULT)["ring"])).hexdigest()
+    assert h != V1_STL_SHA256
+
+
+def test_top_edge_printable_overhang():
+    """Every segment of the rounded / chamfer profile has overhang <= 45° (dr/dz <= 1)."""
+    p = H.DEFAULT
+    L = H.layout(p)
+    for mode, size in (("rounded", 2.5), ("rounded", 4.0), ("chamfer", 2.5), ("chamfer", 4.0), ("none", 2.5)):
+        pts = H.top_edge_profile(mode, size if mode != "none" else 0.0, L["r_cyl"], L["H"])
+        for (r0, z0), (r1, z1) in zip(pts, pts[1:]):
+            dz = z1 - z0
+            if abs(dz) < 1e-12:
+                assert abs(r1 - r0) < 1e-12  # no horizontal run (90° overhang)
+                continue
+            # walking down the profile, z decreases, r decreases (or stays)
+            assert (r1 - r0) / dz <= 1.0 + 1e-6
+
+
+def test_top_edge_clamped_keeps_wall(monkeypatch):
+    """An oversized flare is reduced so >= 2 mm remains between the cut and the gas channels, and the UI is told."""
+    # Default geometry still has ~4.8 mm clearance at 4 mm, so simulate a tighter channel.
+    monkeypatch.setattr(H, "top_edge_gas_clearance", lambda p, L, size: 6.0 - 1.5 * size)
+    p = H.RingParams(top_edge="rounded", top_edge_size=4.0)
+    L = H.layout(p)
+    assert L["top_edge_clamped"], L
+    assert L["top_edge_size"] == pytest.approx(8 / 3, abs=0.01)  # 6 - 1.5*S = 2
+    assert "2 mm of wall" in L["top_edge_note"]
+    assert "reduced from 4" in L["top_edge_note"]
+    assert (6.0 - 1.5 * L["top_edge_size"]) >= H.MIN_WALL - 1e-3
+
+
+def test_top_edge_clamped_to_range():
+    """A request above 4 mm is clipped to the 0–4 mm range (defaults still have wall to spare at 4 mm)."""
+    p = H.RingParams(top_edge="rounded", top_edge_size=10.0)
+    L = H.layout(p)
+    assert L["top_edge_clamped"] and L["top_edge_size"] == pytest.approx(4.0)
+    assert "0–4 mm range" in L["top_edge_note"]
+    assert "2 mm of wall" not in L["top_edge_note"]
+    assert H.top_edge_gas_clearance(p, L, 4.0) >= H.MIN_WALL
+
+
+def test_top_edge_variants_solid():
+    for kw in (dict(top_edge="chamfer", top_edge_size=2.5),
+               dict(top_edge="rounded", top_edge_size=1.0),
+               dict(top_edge="none", top_edge_size=0.0)):
+        p = H.RingParams(**kw)
+        assert H.verify(p, H.build(p))["ok"]

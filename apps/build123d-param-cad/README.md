@@ -538,11 +538,20 @@ ring bottom at the defaults) and spin on downward. Everything is parametric on s
   → 180° distribution arc → two risers at ±90° → full-ring plenum → four tilted feeds → sockets. All four paths are
   mirror/rotation images of each other, so they are the same length. The **direct** option feeds the plenum at 0°,
   which makes the paths differ by 26.7 mm.
+* **Top inner edge (v2 default: rounded, 2.5 mm).** A flare at the top of the bore so, when a metal head is lit,
+  outside air is pulled down more evenly. Sidebar options are **Rounded** (default), **Chamfer 45°**, and **None**.
+  Size is adjustable from 0–4 mm and is clamped so at least 2 mm of wall stays above the plenum and gas channels
+  (the UI says so when it is). A true quarter-round would meet the top face at a 90° overhang and need supports, so
+  Rounded is a 45° chamfer blended into a fillet: the tangent goes from vertical to 45° and stays at 45° until the
+  top face (depth = size × √2). **None** keeps the v1 sharp edge and is STL-byte-identical to
+  `/workspace/exports/hho_vortex_ring/v1/`.
 * **Printable with no supports.** Print it flat with the barb up. The plenum, distribution arc, runner and feeds are
   45° teardrops pointing up. The inner bore is a cone widening downward with an overhang equal to the tilt (≤ 45°).
-  The risers and the barb bore are vertical. Gas channels have walls of at least 2 mm.
+  The risers and the barb bore are vertical. The top inner edge overhang is ≤ 45°. Gas channels have walls of at
+  least 2 mm.
 * `scripts/build_hho_ring.py` writes `hho_vortex_ring.stl` / `.step`, a reference gas-cavity STL, renders (iso,
-  top, side, bottom, two cutaways, gas path), a board and `summary.json` to `/workspace/exports/hho_vortex_ring/v1/`.
+  top, side, bottom, two cutaways, gas path), a labelled top-down gas-path diagram (`gas_path_labeled.png`), a
+  board and `summary.json` to `/workspace/exports/hho_vortex_ring/v2_top_round/` (it will not overwrite v1).
   Tests: `tests/test_hho_ring.py`.
 
 ## build123d dev features: fillet error reporting (PR #1525) and `filter_by_value` (PR #1524)

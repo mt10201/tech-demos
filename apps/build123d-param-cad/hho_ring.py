@@ -9,6 +9,9 @@ Frame: ring axis = +Z, ring held horizontal, flame BELOW (-Z). Printed as modell
 barb pointing up. No supports: plenum, distribution channel and inlet runner are 45-deg teardrops (point up),
 tilted feeds are teardrops pointing up, the inner bore is a downward-opening cone (overhang = tilt <= 45 deg),
 barb catch faces are 45-deg chamfers, risers and barb bore are vertical.
+The top inner edge (default: rounded) flares the bore so, once a metal head is lit, outside air is
+pulled down more evenly; a true quarter-round would meet the top face at a 90-deg overhang, so the
+rounded option is a 45-deg chamfer blended into a fillet (overhang never exceeds 45 deg).
 
 Gas path ("split" manifold, default): barb -> vertical bore -> radial runner -> 180-deg distribution arc (upper)
 -> two risers at +-90 deg -> full-ring plenum (lower) -> 4 feeds at 45/135/225/315 deg -> stop shoulder -> tip.
@@ -52,6 +55,9 @@ BARBS = {  # vinyl tube ID -> barb root OD, crest OD, bore (bore keeps >= 2 mm b
     '5/16" (7.94 mm) ID': dict(tube_id=7.94, root=7.5, crest=8.9, bore=2.6),
 }
 MANIFOLDS = {"split": "Split manifold (equal paths, default)", "direct": "Direct (single feed into plenum)"}
+# Top inner-edge air entry. "rounded" is the printable stand-in for a quarter-round (see top_edge_profile).
+TOP_EDGE_MODES = {"rounded": "Rounded", "chamfer": "Chamfer 45°", "none": "None"}
+TOP_EDGE_SIZE_MIN, TOP_EDGE_SIZE_MAX, TOP_EDGE_SIZE_DEFAULT = 0.0, 4.0, 2.5
 BED = 235.0
 MIN_WALL = 2.0
 
@@ -85,6 +91,8 @@ class RingParams:
     tube: str = '1/4" (6.35 mm) ID'
     manifold: str = "split"
     n_barbs: int = 3
+    top_edge: str = "rounded"          # rounded (default) / chamfer / none (none = v1 sharp edge)
+    top_edge_size: float = TOP_EDGE_SIZE_DEFAULT  # requested flare (mm), 0–4; clamped to keep MIN_WALL above gas
 
 
 DEFAULT = RingParams()
@@ -153,9 +161,153 @@ def layout(p: RingParams) -> dict:
     r_cyl = r_mouth - 2.4 * math.tan(t)
     R_barb = R_out + b["crest"] / 2 + 3.0
     boss_r = b["crest"] / 2 + 2.0
-    return dict(bore=bore, feed_len=feed_len, L_axis=L_axis, z_p=z_p, z_d=z_d, H=H, R_out=R_out, r_mouth=r_mouth,
-                r_bot=r_bot, z_cone_top=z_cone_top, r_cyl=r_cyl, R_barb=R_barb, boss_r=boss_r, barb=b,
-                starts=starts, dirs=dirs, mouths=mouths, tips=tips)
+    if p.top_edge not in TOP_EDGE_MODES:
+        raise ValueError(f"top_edge must be one of {list(TOP_EDGE_MODES)}")
+    L = dict(bore=bore, feed_len=feed_len, L_axis=L_axis, z_p=z_p, z_d=z_d, H=H, R_out=R_out, r_mouth=r_mouth,
+             r_bot=r_bot, z_cone_top=z_cone_top, r_cyl=r_cyl, R_barb=R_barb, boss_r=boss_r, barb=b,
+             starts=starts, dirs=dirs, mouths=mouths, tips=tips)
+    L.update(top_edge_apply(p, L))
+    return L
+
+
+def top_edge_depth(mode: str, size: float) -> float:
+    """Vertical depth of the top-inner cut (mm). Rounded is a size-S chamfer plus a fillet of radius S."""
+    if mode == "none" or size <= 0:
+        return 0.0
+    if mode == "chamfer":
+        return size
+    return size * math.sqrt(2.0)  # fillet radius = size, adds size*(√2-1) below the chamfer
+
+
+def top_edge_profile(mode: str, size: float, r_cyl: float, H: float, n_arc: int = 10) -> list[tuple[float, float]]:
+    """(r, z) points that replace the sharp top-inner corner (r_cyl, H), going from the top face down to the cylinder.
+
+    none / size 0: the v1 corner (r_cyl, H) only — blank profile stays byte-identical.
+    chamfer: 45° line from (r_cyl+S, H) to (r_cyl, H-S). Overhang = 45°.
+    rounded: 45° chamfer of size S blended into a fillet of radius S at the cylinder. A true quarter-round
+    would arrive at the top face with a horizontal tangent (90° overhang, needs supports). This profile's
+    tangent goes from vertical to 45° on the fillet and stays at 45° until the top face, so the overhang
+    never exceeds 45°. Depth is S√2.
+    """
+    if mode == "none" or size <= 1e-9:
+        return [(r_cyl, H)]
+    if mode == "chamfer":
+        return [(r_cyl + size, H), (r_cyl, H - size)]
+    f = size
+    # Fillet centre is inside the solid, at (r_cyl+f, H-S - f(√2-1)).
+    # Arc runs from 135° (tangent to the 45° chamfer) to 180° (tangent to the cylinder).
+    z_c = (H - size) - f * (math.sqrt(2.0) - 1.0)
+    cx = r_cyl + f
+    t_r = r_cyl + f * (1.0 - 1.0 / math.sqrt(2.0))
+    t_z = (H - size) + f * (1.0 - 1.0 / math.sqrt(2.0))
+    pts = [(r_cyl + size, H), (t_r, t_z)]
+    for i in range(1, n_arc + 1):
+        a = math.radians(135.0 + 45.0 * i / n_arc)
+        pts.append((cx + f * math.cos(a), z_c + f * math.sin(a)))
+    return pts
+
+
+def _teardrop_outline_rz(R: float, zc: float, rad: float, n: int = 48) -> list[tuple[float, float]]:
+    """Meridional (r, z) outline of a 45° upward teardrop (circle + kite), for wall checks."""
+    c = rad / math.sqrt(2.0)
+    pts = [(R + rad * math.cos(2 * math.pi * i / n), zc + rad * math.sin(2 * math.pi * i / n)) for i in range(n)]
+    tip, left, right = (R, zc + rad * math.sqrt(2.0)), (R - c, zc + c), (R + c, zc + c)
+    for t in range(n):
+        u = t / (n - 1)
+        pts.append((left[0] + u * (tip[0] - left[0]), left[1] + u * (tip[1] - left[1])))
+        pts.append((right[0] + u * (tip[0] - right[0]), right[1] + u * (tip[1] - right[1])))
+    return pts
+
+
+def _sample_profile_rz(pts: list[tuple[float, float]], step: float = 0.15) -> list[tuple[float, float]]:
+    out = [pts[0]]
+    for a, b in zip(pts, pts[1:]):
+        d = math.hypot(b[0] - a[0], b[1] - a[1])
+        n = max(1, int(math.ceil(d / step)))
+        for i in range(1, n + 1):
+            u = i / n
+            out.append((a[0] + u * (b[0] - a[0]), a[1] + u * (b[1] - a[1])))
+    return out
+
+
+def top_edge_gas_clearance(p: RingParams, L: dict, size: float) -> float:
+    """Minimum (r, z) distance from the top-inner cut of this size to the plenum / distribution teardrops (mm)."""
+    mode = p.top_edge
+    if mode == "none" or size <= 0:
+        return float("inf")
+    prof = _sample_profile_rz(top_edge_profile(mode, size, L["r_cyl"], L["H"]))
+    outlines = _teardrop_outline_rz(p.R_plenum, L["z_p"], p.plenum_r)
+    if p.manifold == "split":
+        outlines += _teardrop_outline_rz(p.R_plenum, L["z_d"], p.dist_r)
+    return min(math.hypot(pr - qr, pz - qz) for pr, pz in prof for qr, qz in outlines)
+
+
+def _top_edge_caps(p: RingParams, L: dict) -> dict:
+    """Independent maximum sizes (mm) from the rim, the inner cone, and the 2 mm gas-wall rule."""
+    mode = p.top_edge
+    r0, H = L["r_cyl"], L["H"]
+    # Leave a 2 mm land on the top face inside the 0.8 mm outer chamfer.
+    max_rim = max(0.0, (L["R_out"] - 0.8) - r0 - MIN_WALL)
+    # Depth must stay above the cone: chamfer depth = S, rounded depth = S√2.
+    scale = math.sqrt(2.0) if mode == "rounded" else 1.0
+    max_cone = max(0.0, (H - L["z_cone_top"] - 0.4) / scale)
+    # Binary-search the largest S in [0, TOP_EDGE_SIZE_MAX] with clearance >= MIN_WALL.
+    lo, hi = 0.0, TOP_EDGE_SIZE_MAX
+    if top_edge_gas_clearance(p, L, hi) >= MIN_WALL:
+        max_wall = hi
+    else:
+        for _ in range(24):
+            mid = (lo + hi) / 2
+            if top_edge_gas_clearance(p, L, mid) >= MIN_WALL:
+                lo = mid
+            else:
+                hi = mid
+        max_wall = lo
+    return dict(max_rim=max_rim, max_cone=max_cone, max_wall=max_wall)
+
+
+def top_edge_apply(p: RingParams, L: dict) -> dict:
+    """Clamped size / depth / UI note for the top inner edge. none or size 0 leaves the v1 corner."""
+    requested = float(p.top_edge_size)
+    if p.top_edge == "none" or requested <= 0:
+        return dict(top_edge=p.top_edge if p.top_edge in TOP_EDGE_MODES else "none",
+                    top_edge_size_req=requested, top_edge_size=0.0, top_edge_depth=0.0,
+                    top_edge_clamped=False, top_edge_note="",
+                    top_edge_profile="none")
+    caps = _top_edge_caps(p, L)
+    cap = min(TOP_EDGE_SIZE_MAX, caps["max_rim"], caps["max_cone"], caps["max_wall"])
+    applied = min(max(0.0, requested), cap)
+    clamped = applied < requested - 1e-6
+    note = ""
+    if clamped:
+        reasons = []
+        # Only name a limit if it actually cut the size below the already-range-clipped request.
+        clipped = min(max(0.0, requested), TOP_EDGE_SIZE_MAX)
+        if requested > TOP_EDGE_SIZE_MAX + 1e-9:
+            reasons.append("the size stays in the 0–4 mm range")
+        if caps["max_wall"] < clipped - 1e-6:
+            reasons.append("at least 2 mm of wall stays above the plenum and gas channels")
+        if caps["max_cone"] < clipped - 1e-6:
+            reasons.append("the inner cone is left intact")
+        if caps["max_rim"] < clipped - 1e-6:
+            reasons.append("a 2 mm top-face land remains inside the outer chamfer")
+        if not reasons:
+            reasons.append("at least 2 mm of wall stays above the plenum and gas channels")
+        note = (f"Top inner edge size was reduced from {requested:g} mm to {applied:.2f} mm so "
+                + ", and ".join(reasons) + ".")
+    profile = "printable 45° chamfer blended into a fillet" if p.top_edge == "rounded" else "45° chamfer"
+    return dict(top_edge=p.top_edge, top_edge_size_req=requested, top_edge_size=applied,
+                top_edge_depth=top_edge_depth(p.top_edge, applied), top_edge_clamped=clamped,
+                top_edge_note=note, top_edge_profile=profile,
+                top_edge_clearance_mm=round(top_edge_gas_clearance(p, L, applied), 3) if applied else None)
+
+
+def top_edge_info(p: RingParams) -> dict:
+    """Sidebar / page helper: clamped top-edge numbers from layout() (cheap, no solids)."""
+    L = layout(p)
+    return dict(mode=L["top_edge"], size=L["top_edge_size"], requested=L["top_edge_size_req"],
+                depth=L["top_edge_depth"], clamped=L["top_edge_clamped"], note=L["top_edge_note"],
+                profile=L["top_edge_profile"])
 
 
 def barb_profile(p: RingParams, L: dict):
@@ -267,8 +419,10 @@ def blank(p: RingParams, L: dict):
     """Solid ring + inlet boss + barb, before any gas path is cut."""
     from build123d import Axis, Box, Cylinder, Plane, Polygon, Pos, revolve
     H = L["H"]; ch = 0.8
+    # When top_edge is none / size 0, top_edge_profile returns exactly (r_cyl, H) — the v1 corner.
     prof = [(L["r_bot"], 0), (L["R_out"] - 0.4, 0), (L["R_out"], 0.4), (L["R_out"], H - ch), (L["R_out"] - ch, H),
-            (L["r_cyl"], H), (L["r_cyl"], L["z_cone_top"])]
+            *top_edge_profile(L["top_edge"], L["top_edge_size"], L["r_cyl"], H),
+            (L["r_cyl"], L["z_cone_top"])]
     ring = revolve(Plane.XZ * Polygon(*prof, align=_NONE), Axis.Z, 360)
     Rb, br = L["R_barb"], L["boss_r"]
     boss = Pos(Rb, 0, 0) * Cylinder(br, H, align=_CCM) + \
@@ -415,6 +569,8 @@ def design_walls(p: RingParams, L: dict | None = None) -> dict:
     if p.manifold == "split":
         w["plenum_to_distribution"] = round(L["z_d"] - p.dist_r - (L["z_p"] + p.plenum_r * t2), 3)
         w["distribution_to_outer"] = round(L["R_out"] - p.R_plenum - p.dist_r, 3)
+    if L.get("top_edge_size", 0) > 0:
+        w["top_edge_to_gas"] = round(top_edge_gas_clearance(p, L, L["top_edge_size"]), 3)
     return w
 
 
@@ -442,11 +598,17 @@ def jet_meshes(p: RingParams, L: dict | None = None, r=0.35, extra=6.0):
 
 def report(p: RingParams) -> dict:
     L = layout(p)
+    flare = L["r_cyl"] + L["top_edge_size"]
     return dict(socket_bore_mm=round(L["bore"], 4), insert_depth_mm=p.insert_depth, feed_d_mm=p.feed_d,
                 ring_od_mm=round(2 * L["R_out"], 2), ring_height_mm=L["H"], mouth_radius_mm=round(L["r_mouth"], 3),
-                inner_bottom_d_mm=round(2 * L["r_bot"], 2), inner_top_d_mm=round(2 * L["r_cyl"], 2),
+                inner_bottom_d_mm=round(2 * L["r_bot"], 2), inner_cylinder_d_mm=round(2 * L["r_cyl"], 2),
+                inner_top_d_mm=round(2 * flare, 2),
                 barb=dict(tube=p.tube, **L["barb"]), walls=design_walls(p, L), jets=jets(p, L), path_balance=path_lengths(p, L), areas=areas(p, L),
-                tilt_deg_down=p.tilt_deg, swirl_deg=p.swirl_deg, manifold=p.manifold)
+                tilt_deg_down=p.tilt_deg, swirl_deg=p.swirl_deg, manifold=p.manifold,
+                top_edge=dict(mode=L["top_edge"], size_mm=round(L["top_edge_size"], 3),
+                              requested_mm=round(L["top_edge_size_req"], 3), depth_mm=round(L["top_edge_depth"], 3),
+                              clamped=L["top_edge_clamped"], note=L["top_edge_note"] or None,
+                              profile=L["top_edge_profile"]))
 
 
 def params_dict(p):
